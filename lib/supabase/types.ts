@@ -285,6 +285,53 @@ export interface Database {
         Update: Partial<Omit<Database["public"]["Tables"]["webhook_events"]["Insert"], "provider" | "external_event_id">>;
         Relationships: [];
       };
+      knowledge_documents: {
+        Row: {
+          id: string;
+          organization_id: string;
+          source_id: string | null;
+          title: string;
+          content: string;
+          category: string | null;
+          tags: string[];
+          status: "draft" | "published" | "archived";
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          source_id?: string | null;
+          title: string;
+          content?: string;
+          category?: string | null;
+          tags?: string[];
+          status?: "draft" | "published" | "archived";
+          updated_by?: string | null;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["knowledge_documents"]["Insert"], "organization_id">>;
+        Relationships: [];
+      };
+      knowledge_chunks: {
+        Row: {
+          id: string;
+          organization_id: string;
+          document_id: string;
+          chunk_index: number;
+          content: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          document_id: string;
+          chunk_index?: number;
+          content: string;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["knowledge_chunks"]["Insert"], "organization_id" | "document_id">>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

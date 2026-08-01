@@ -23,7 +23,7 @@ yansıtır. `@anthropic-ai/sdk`, `stripe`, `@sentry/*` hâlâ kurulu değil.
 | 5 | Web chat | `DEMO_ONLY` | Gömülebilir widget bileşeni/scripti yok. `web` sadece mock konuşmalarda üçüncü bir kanal etiketi. |
 | 6 | AI cevap önerisi | `DEMO_ONLY` | Anthropic/OpenAI SDK kurulu değil, LLM çağıran route yok. Önerilen yanıt metinleri `lib/demo/data.ts`'te sabit string. "Gönder / Devret / Düzenle" butonlarının `onClick`'i yok. |
 | 7 | Bilgi tabanı | `PARTIAL` | Gerçek CRUD (`lib/actions/knowledge.ts`): makale oluştur/düzenle/yayınla/arşivle/sil, gerçek arama (`?q=`, kategori filtresi), yayında paragraf bazlı chunk'lama → `knowledge_chunks` (FTS indeksi Faz 1'den hazır). Canlı RLS testiyle doğrulandı (agent+ yazabiliyor, viewer engelleniyor). `PARTIAL` nedeni: yalnızca elle metin girişi var — URL/PDF/DOCX/CSV içe aktarma henüz yok (spec'in kendi sıralamasında sonraki adımlar), ve retrieval (AI'ın bu chunk'ları gerçekten kullanması) Faz 5'e ait. |
-| 8 | Otomasyonlar | `PARTIAL` | `app/(app)/automations/page.tsx`'te açma/kapama `toggle(id)` gerçek client-side state güncelliyor (istatistik şeridi tepki veriyor) — ama backend'e yazılmıyor, sayfa yenilenince sıfırlanıyor. Kural motoru veya "Yeni kural" işlevi yok. |
+| 8 | Otomasyonlar | `PRODUCTION_READY` | Gerçek kural motoru (`lib/automations/engine.ts`): anahtar kelime ve mesai-dışı tetikleyicileri, her gelen WhatsApp mesajında değerlendiriliyor, eşleşince gerçek Twilio yanıtı gönderiyor. Her çalışma `automation_runs`'a yazılıyor, aynı mesaj için aynı kural iki kez çalışmıyor (unique constraint). Rol bazlı UI (agent/viewer sadece görür, admin+ oluşturur/değiştirir/siler). Canlı test edildi: gerçek webhook → kural eşleşti → Twilio'ya gitti → hem `automation_runs` hem mesaj kaydı doğru "failed" + hata sebebiyle işaretlendi (test numarası sandbox'a kayıtlı olmadığı için beklenen hata), duplicate webhook ikinci çalıştırma oluşturmadı. Kapsam: yalnızca spec'in "güvenli MVP" listesindeki kural türleri (anahtar kelime, mesai dışı) — karmaşık koşul oluşturucu veya tam otomatik AI gönderimi yok (henüz AI yok). |
 | 9 | Dashboard/KPI | `DEMO_ONLY` | `app/(app)/dashboard/page.tsx`'teki tüm sayılar (`kpis`, `sla`, `csatTrend`, `agentPerf` vb.) `lib/demo/data.ts`'ten sabit — fetch/sorgu yok. |
 | 10 | Abonelik/faturalandırma | `DEMO_ONLY` | Stripe/ödeme SDK'sı yok, checkout route yok. Fiyat kartları (`app.config.ts` → `marketing.pricing`) yalnızca görsel metin; CTA'lar hiçbir işleme bağlı değil. |
 | 11 | Yönetici paneli | `NOT PRESENT` | `/admin` rotası veya admin'e özel bileşen/koruma yok. |
@@ -82,3 +82,9 @@ Faz 5 (AI cevap üretimi) için:
   chunk'lama. Canlı RLS testiyle doğrulandı. Kapsam dışı: URL/dosya
   içe aktarma (spec'in kendi MVP sıralamasında sonraki adımlar),
   AI'ın bu içeriği gerçekten kullanması (Faz 5).
+- **Faz 6** — Tamamlandı (bkz. tablo satır 8, Anthropic anahtarı
+  beklenirken Faz 5 atlanıp buraya geçildi): gerçek anahtar kelime +
+  mesai dışı otomasyon motoru, canlı webhook testiyle doğrulandı.
+  Bu arada bir bug bulunup düzeltildi: otomasyonun gönderdiği mesaj,
+  Twilio hata verdiğinde "queued"da takılı kalıyordu, artık agent'ın
+  elle gönderdiği mesajlar gibi doğru "failed" + sebep gösteriyor.

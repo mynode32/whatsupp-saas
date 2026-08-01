@@ -1,34 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, Mail } from "lucide-react";
 import appConfig from "@/app.config";
 import { useLang } from "@/components/i18n/language-provider";
 import { Logo } from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { LanguageToggle } from "@/components/ui/language-toggle";
+import { signInAction, signUpAction, type AuthActionState } from "@/lib/actions/auth";
 
-/**
- * Login / signup with a DEMO BYPASS. Supabase isn't connected in this kit, so
- * submitting (or "Continue with demo") just drops you into the live demo
- * dashboard. Wire Supabase via /setup to make these forms do real auth.
- */
-export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
+const initialState: AuthActionState = {};
+
+export function AuthScreen({
+  mode,
+  demoModeEnabled,
+}: {
+  mode: "login" | "signup";
+  demoModeEnabled: boolean;
+}) {
   const { ui, t, lang } = useLang();
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const isLogin = mode === "login";
+  const stats = appConfig.marketing.stats.slice(0, 3);
 
-  function enter(e?: React.FormEvent) {
-    e?.preventDefault();
-    setLoading(true);
+  const [state, formAction, pending] = useActionState(
+    isLogin ? signInAction : signUpAction,
+    initialState,
+  );
+
+  function enterDemo() {
     setTimeout(() => router.push("/dashboard"), 450);
   }
 
-  const isLogin = mode === "login";
-  const stats = appConfig.marketing.stats.slice(0, 3);
+  const checkEmail = state.success && state.message === "check-email";
 
   return (
     <div className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
@@ -79,73 +86,106 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
             <Logo />
           </Link>
 
-          <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">
-              {appConfig.name}
-            </p>
-            <h2 className="mt-1 font-display text-3xl font-semibold tracking-tight">
-              {isLogin ? ui.welcomeBack : ui.createAccount}
-            </h2>
-          </div>
-
-          {/* Social (decorative in demo) */}
-          <div className="grid grid-cols-2 gap-3">
-            <Button variant="outline" onClick={enter} className="gap-2">
-              <GoogleGlyph /> Google
-            </Button>
-            <Button variant="outline" onClick={enter} className="gap-2">
-              <GithubGlyph /> GitHub
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="h-px flex-1 bg-border" />
-            {ui.orContinueWith} {ui.email.toLowerCase()}
-            <span className="h-px flex-1 bg-border" />
-          </div>
-
-          <form onSubmit={enter} className="space-y-4">
-            {!isLogin && (
-              <div className="space-y-1.5">
-                <Label htmlFor="name">{ui.fullName}</Label>
-                <Input id="name" name="name" placeholder={lang === "tr" ? "Adın Soyadın" : "Jane Doe"} />
+          {checkEmail ? (
+            <div className="space-y-4 text-center">
+              <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary">
+                <Mail className="h-6 w-6" />
+              </span>
+              <h2 className="font-display text-2xl font-semibold tracking-tight">
+                {ui.checkEmailTitle}
+              </h2>
+              <p className="text-sm text-muted-foreground">{ui.checkEmailBody}</p>
+              <Link
+                href="/login"
+                className="inline-block text-sm font-medium text-primary hover:underline underline-offset-4"
+              >
+                {ui.backToLogin}
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div>
+                <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">
+                  {appConfig.name}
+                </p>
+                <h2 className="mt-1 font-display text-3xl font-semibold tracking-tight">
+                  {isLogin ? ui.welcomeBack : ui.createAccount}
+                </h2>
               </div>
-            )}
-            <div className="space-y-1.5">
-              <Label htmlFor="email">{ui.email}</Label>
-              <Input id="email" name="email" type="email" placeholder="you@company.com" defaultValue="demo@demo.app" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="password">{ui.password}</Label>
-              <Input id="password" name="password" type="password" placeholder="••••••••" defaultValue="demodemo" />
-            </div>
-            <Button type="submit" disabled={loading} className="w-full gap-2">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {isLogin ? ui.signIn : ui.getStarted}
-              {!loading && <ArrowRight className="h-4 w-4" />}
-            </Button>
-          </form>
 
-          <button
-            onClick={enter}
-            className="w-full rounded-lg border border-dashed border-border py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:border-primary hover:text-primary cursor-pointer"
-          >
-            {ui.continueDemo} →
-          </button>
+              {/* Social — not wired yet */}
+              <div className="grid grid-cols-2 gap-3">
+                <Button variant="outline" disabled className="gap-2" title={ui.comingSoon}>
+                  <GoogleGlyph /> Google
+                </Button>
+                <Button variant="outline" disabled className="gap-2" title={ui.comingSoon}>
+                  <GithubGlyph /> GitHub
+                </Button>
+              </div>
 
-          <p className="rounded-lg bg-muted px-3 py-2 text-center text-xs text-muted-foreground">
-            {ui.demoNote}
-          </p>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                {ui.orContinueWith} {ui.email.toLowerCase()}
+                <span className="h-px flex-1 bg-border" />
+              </div>
 
-          <p className="text-center text-sm text-muted-foreground">
-            {isLogin ? ui.noAccount : ui.haveAccount}{" "}
-            <Link
-              href={isLogin ? "/signup" : "/login"}
-              className="font-medium text-primary hover:underline underline-offset-4"
-            >
-              {isLogin ? ui.getStarted : ui.signIn}
-            </Link>
-          </p>
+              <form action={formAction} className="space-y-4">
+                {!isLogin && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="name">{ui.fullName}</Label>
+                    <Input id="name" name="name" placeholder={lang === "tr" ? "Adın Soyadın" : "Jane Doe"} required />
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <Label htmlFor="email">{ui.email}</Label>
+                  <Input id="email" name="email" type="email" placeholder="you@company.com" required />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">{ui.password}</Label>
+                    {isLogin && (
+                      <Link href="/forgot-password" className="text-xs font-medium text-primary hover:underline underline-offset-4">
+                        {ui.forgotPassword}
+                      </Link>
+                    )}
+                  </div>
+                  <Input id="password" name="password" type="password" placeholder="••••••••" required minLength={8} />
+                </div>
+                {state.error && (
+                  <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{state.error}</p>
+                )}
+                <Button type="submit" disabled={pending} className="w-full gap-2">
+                  {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {isLogin ? ui.signIn : ui.getStarted}
+                  {!pending && <ArrowRight className="h-4 w-4" />}
+                </Button>
+              </form>
+
+              {demoModeEnabled && (
+                <>
+                  <button
+                    onClick={enterDemo}
+                    className="w-full rounded-lg border border-dashed border-border py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:border-primary hover:text-primary cursor-pointer"
+                  >
+                    {ui.continueDemo} →
+                  </button>
+                  <p className="rounded-lg bg-muted px-3 py-2 text-center text-xs text-muted-foreground">
+                    {ui.demoNote}
+                  </p>
+                </>
+              )}
+
+              <p className="text-center text-sm text-muted-foreground">
+                {isLogin ? ui.noAccount : ui.haveAccount}{" "}
+                <Link
+                  href={isLogin ? "/signup" : "/login"}
+                  className="font-medium text-primary hover:underline underline-offset-4"
+                >
+                  {isLogin ? ui.getStarted : ui.signIn}
+                </Link>
+              </p>
+            </>
+          )}
         </div>
       </section>
     </div>

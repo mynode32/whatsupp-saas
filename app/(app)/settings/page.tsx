@@ -1,11 +1,44 @@
 import appConfig from "@/app.config";
+import { createClient } from "@/lib/supabase/server";
+import { getOrganization } from "@/lib/db/organizations";
+import { listTeamMembers } from "@/lib/db/team";
+import { listPendingInvitations } from "@/lib/db/invitations";
 import { SettingsClient } from "@/components/app/settings-client";
 
-/** Server side: an integration is "connected" when all its env vars exist. */
-export default function SettingsPage() {
+export default async function SettingsPage() {
   const connected: Record<string, boolean> = {};
   for (const it of appConfig.integrations) {
     connected[it.key] = it.envVars.every((v) => !!process.env[v]);
   }
-  return <SettingsClient connected={connected} />;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id, role")
+    .eq("user_id", user!.id)
+    .limit(1)
+    .maybeSingle();
+
+  const [organization, members, invitations] = membership
+    ? await Promise.all([
+        getOrganization(membership.organization_id),
+        listTeamMembers(membership.organization_id),
+        listPendingInvitations(membership.organization_id),
+      ])
+    : [null, [], []];
+
+  return (
+    <SettingsClient
+      connected={connected}
+      organization={organization}
+      members={members}
+      invitations={invitations}
+      currentUserId={user!.id}
+      currentUserRole={membership?.role ?? "viewer"}
+    />
+  );
 }

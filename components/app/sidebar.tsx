@@ -8,10 +8,17 @@ import { Logo } from "@/components/ui/logo";
 import { Icon } from "@/components/ui/icon";
 import { useLang } from "@/components/i18n/language-provider";
 import { cn } from "@/lib/utils";
+import { signOutAction } from "@/lib/actions/auth";
 
-export function Sidebar() {
+export function Sidebar({ userName, userEmail }: { userName: string; userEmail: string }) {
   const pathname = usePathname();
   const { t, ui } = useLang();
+  const initials = userName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]!.toUpperCase())
+    .join("") || userEmail.slice(0, 2).toUpperCase();
 
   return (
     <aside className="hidden bg-sidebar text-sidebar-foreground md:flex md:w-64 md:flex-col">
@@ -46,19 +53,21 @@ export function Sidebar() {
       <div className="border-t border-sidebar-border p-3">
         <div className="flex items-center gap-3 rounded-lg px-2 py-1.5">
           <span className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-sm font-semibold">
-            ED
+            {initials}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">Elif Demir</p>
+            <p className="truncate text-sm font-medium">{userName || userEmail}</p>
             <p className="truncate text-xs text-sidebar-muted">{ui.account}</p>
           </div>
-          <Link
-            href="/login"
-            aria-label={ui.logout}
-            className="grid h-8 w-8 place-items-center rounded-md text-sidebar-muted transition-colors hover:bg-white/5 hover:text-sidebar-foreground"
-          >
-            <LogOut className="h-4 w-4" />
-          </Link>
+          <form action={signOutAction}>
+            <button
+              type="submit"
+              aria-label={ui.logout}
+              className="grid h-8 w-8 cursor-pointer place-items-center rounded-md text-sidebar-muted transition-colors hover:bg-white/5 hover:text-sidebar-foreground"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </form>
         </div>
       </div>
     </aside>

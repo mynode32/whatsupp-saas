@@ -22,6 +22,7 @@ export interface Database {
           timezone: string;
           support_email: string | null;
           brand_voice: string | null;
+          created_by: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -34,6 +35,7 @@ export interface Database {
           timezone?: string;
           support_email?: string | null;
           brand_voice?: string | null;
+          created_by?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["organizations"]["Insert"]>;
         Relationships: [];
@@ -70,6 +72,52 @@ export interface Database {
           role?: OrgRole;
         };
         Update: Partial<Omit<Database["public"]["Tables"]["organization_members"]["Insert"], "organization_id" | "user_id">>;
+        Relationships: [];
+      };
+      invitations: {
+        Row: {
+          id: string;
+          organization_id: string;
+          email: string;
+          role: OrgRole;
+          invited_by: string;
+          token: string;
+          status: "pending" | "accepted" | "revoked" | "expired";
+          expires_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          email: string;
+          role?: OrgRole;
+          invited_by: string;
+          status?: "pending" | "accepted" | "revoked" | "expired";
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["invitations"]["Insert"], "organization_id">>;
+        Relationships: [];
+      };
+      business_hours: {
+        Row: {
+          id: string;
+          organization_id: string;
+          day_of_week: number;
+          open_time: string | null;
+          close_time: string | null;
+          is_closed: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          day_of_week: number;
+          open_time?: string | null;
+          close_time?: string | null;
+          is_closed?: boolean;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["business_hours"]["Insert"], "organization_id" | "day_of_week">>;
         Relationships: [];
       };
     };

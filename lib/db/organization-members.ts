@@ -30,6 +30,13 @@ export async function getMembership(organizationId: string, userId: string): Pro
   );
 }
 
+/**
+ * Not for bootstrapping the first (owner) member of a brand-new org —
+ * verified live that INSERT...RETURNING fails there because the
+ * SELECT policy can't yet resolve org membership for the caller. Use
+ * a plain `.insert()` without `.select()` for that case (see
+ * completeOnboardingAction), which doesn't need the row back anyway.
+ */
 export async function addMember(input: MemberInsert): Promise<Member> {
   const supabase = await createClient();
   return unwrap(await supabase.from("organization_members").insert(input).select().single());

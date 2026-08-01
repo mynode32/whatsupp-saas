@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getInvitationByToken } from "@/lib/db/invitations";
 import { publicEnv } from "@/lib/env";
+import { logAuditEvent } from "@/lib/audit/log";
 import type { AuthActionState } from "@/lib/actions/auth";
 import type { OrgRole } from "@/lib/supabase/types";
 
@@ -66,6 +67,14 @@ export async function inviteMemberAction(
     return { success: true, message: `Invitation created, but the email could not be sent: ${inviteError.message}` };
   }
 
+  await logAuditEvent({
+    organizationId: parsed.data.organizationId,
+    actorId: user.id,
+    action: "invite_member",
+    targetType: "invitation",
+    metadata: { email: parsed.data.email, role: parsed.data.role },
+  });
+
   revalidatePath("/settings");
   return { success: true, message: "invited" };
 }
@@ -106,11 +115,26 @@ export async function updateMemberRoleAction(
   if (!parsed.success) return { error: "Invalid input" };
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: updated, error } = await supabase
     .from("organization_members")
     .update({ role: parsed.data.role as OrgRole })
-    .eq("id", parsed.data.memberId);
+    .eq("id", parsed.data.memberId)
+    .select("organization_id, user_id")
+    .single();
   if (error) return { error: friendlyDbError(error.message) };
+
+  await logAuditEvent({
+    organizationId: updated.organization_id,
+    actorId: user?.id ?? null,
+    action: "update_member_role",
+    targetType: "organization_member",
+    targetId: updated.user_id,
+    metadata: { role: parsed.data.role },
+  });
 
   revalidatePath("/settings");
   return { success: true };
@@ -126,8 +150,28 @@ export async function removeMemberAction(
   if (!parsed.success) return { error: "Invalid input" };
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: target } = await supabase
+    .from("organization_members")
+    .select("organization_id, user_id")
+    .eq("id", parsed.data.memberId)
+    .maybeSingle();
+
   const { error } = await supabase.from("organization_members").delete().eq("id", parsed.data.memberId);
   if (error) return { error: friendlyDbError(error.message) };
+
+  if (target) {
+    await logAuditEvent({
+      organizationId: target.organization_id,
+      actorId: user?.id ?? null,
+      action: "remove_member",
+      targetType: "organization_member",
+      targetId: target.user_id,
+    });
+  }
 
   revalidatePath("/settings");
   return { success: true };
@@ -166,6 +210,15 @@ export async function acceptInvitationAction(
   if (memberError) return { error: memberError.message };
 
   await admin.from("invitations").update({ status: "accepted" }).eq("id", invitation.id);
+
+  await logAuditEvent({
+    organizationId: invitation.organization_id,
+    actorId: user.id,
+    action: "accept_invitation",
+    targetType: "organization_member",
+    targetId: user.id,
+    metadata: { role: invitation.role },
+  });
 
   redirect("/dashboard");
 }

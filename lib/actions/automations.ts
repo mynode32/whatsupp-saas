@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { logAuditEvent } from "@/lib/audit/log";
 import type { AuthActionState } from "@/lib/actions/auth";
 import type { AutomationAction } from "@/lib/supabase/types";
 
@@ -55,6 +56,14 @@ export async function createRuleAction(
   });
   if (error) return { error: error.message };
 
+  await logAuditEvent({
+    organizationId: parsed.data.organizationId,
+    actorId: user.id,
+    action: "create_automation_rule",
+    targetType: "automation_rule",
+    metadata: { name: parsed.data.name, triggerType: parsed.data.triggerType },
+  });
+
   revalidatePath("/automations");
   return { success: true };
 }
@@ -66,7 +75,27 @@ export async function toggleRuleAction(formData: FormData): Promise<void> {
   if (!parsed.success) return;
 
   const supabase = await createClient();
-  await supabase.from("automation_rules").update({ is_active: parsed.data.isActive === "true" }).eq("id", parsed.data.id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: rule } = await supabase
+    .from("automation_rules")
+    .update({ is_active: parsed.data.isActive === "true" })
+    .eq("id", parsed.data.id)
+    .select("organization_id")
+    .maybeSingle();
+
+  if (rule) {
+    await logAuditEvent({
+      organizationId: rule.organization_id,
+      actorId: user?.id ?? null,
+      action: parsed.data.isActive === "true" ? "publish_automation_rule" : "pause_automation_rule",
+      targetType: "automation_rule",
+      targetId: parsed.data.id,
+    });
+  }
+
   revalidatePath("/automations");
 }
 
@@ -77,6 +106,27 @@ export async function deleteRuleAction(formData: FormData): Promise<void> {
   if (!parsed.success) return;
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: rule } = await supabase
+    .from("automation_rules")
+    .select("organization_id")
+    .eq("id", parsed.data.id)
+    .maybeSingle();
+
   await supabase.from("automation_rules").delete().eq("id", parsed.data.id);
+
+  if (rule) {
+    await logAuditEvent({
+      organizationId: rule.organization_id,
+      actorId: user?.id ?? null,
+      action: "delete_automation_rule",
+      targetType: "automation_rule",
+      targetId: parsed.data.id,
+    });
+  }
+
   revalidatePath("/automations");
 }

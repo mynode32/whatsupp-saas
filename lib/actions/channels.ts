@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createTwilioClient, isTwilioConfigured } from "@/lib/twilio/client";
 import { serverEnv } from "@/lib/env.server";
 import { createNotification } from "@/lib/notifications/create";
+import { logAuditEvent } from "@/lib/audit/log";
 import type { AuthActionState } from "@/lib/actions/auth";
 
 const connectSchema = z.object({ organizationId: z.uuid() });
@@ -68,6 +69,14 @@ export async function connectTwilioAction(
     : await supabase.from("channel_connections").insert({ ...fields, organization_id: parsed.data.organizationId });
 
   if (error) return { error: error.message };
+
+  await logAuditEvent({
+    organizationId: parsed.data.organizationId,
+    actorId: user.id,
+    action: "connect_whatsapp_channel",
+    targetType: "channel_connection",
+    metadata: { status },
+  });
 
   if (status === "error") {
     const { data: admins } = await supabase
@@ -149,6 +158,13 @@ export async function createWebChannelAction(
     });
     if (error) return { error: error.message };
   }
+
+  await logAuditEvent({
+    organizationId: parsed.data.organizationId,
+    actorId: user.id,
+    action: "configure_web_channel",
+    targetType: "channel_connection",
+  });
 
   revalidatePath("/settings");
   return { success: true };

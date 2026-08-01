@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { logAuditEvent } from "@/lib/audit/log";
 
 function csvEscape(value: string): string {
   if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
@@ -45,16 +45,12 @@ export async function GET() {
   );
   const csv = [header.join(","), ...rows].join("\n");
 
-  // audit_logs has no client insert policy (append-only, service-role
-  // only) — even though this route already verified the caller is
-  // admin+, the log entry itself must go through the admin client.
-  const admin = createAdminClient();
-  await admin.from("audit_logs").insert({
-    organization_id: membership.organization_id,
-    actor_id: user.id,
+  await logAuditEvent({
+    organizationId: membership.organization_id,
+    actorId: user.id,
     action: "export_conversations_csv",
-    target_type: "organization",
-    target_id: membership.organization_id,
+    targetType: "organization",
+    targetId: membership.organization_id,
     metadata: { row_count: rows.length },
   });
 

@@ -22,7 +22,7 @@ yansıtır. `@anthropic-ai/sdk`, `stripe`, `@sentry/*` hâlâ kurulu değil.
 | 4 | Instagram mesajları | `DEMO_ONLY` | Meta/Instagram API kodu yok. Sadece mock verilerde `channel: "instagram"` etiketi. |
 | 5 | Web chat | `DEMO_ONLY` | Gömülebilir widget bileşeni/scripti yok. `web` sadece mock konuşmalarda üçüncü bir kanal etiketi. |
 | 6 | AI cevap önerisi | `DEMO_ONLY` | Anthropic/OpenAI SDK kurulu değil, LLM çağıran route yok. Önerilen yanıt metinleri `lib/demo/data.ts`'te sabit string. "Gönder / Devret / Düzenle" butonlarının `onClick`'i yok. |
-| 7 | Bilgi tabanı | `DEMO_ONLY` | `app/(app)/knowledge/page.tsx` statik `articles`/kategorileri render ediyor. Arama input'unun `onChange`'i yok (dekoratif). "Makale ekle" butonu işlevsiz — CRUD/dosya yükleme yok. |
+| 7 | Bilgi tabanı | `PARTIAL` | Gerçek CRUD (`lib/actions/knowledge.ts`): makale oluştur/düzenle/yayınla/arşivle/sil, gerçek arama (`?q=`, kategori filtresi), yayında paragraf bazlı chunk'lama → `knowledge_chunks` (FTS indeksi Faz 1'den hazır). Canlı RLS testiyle doğrulandı (agent+ yazabiliyor, viewer engelleniyor). `PARTIAL` nedeni: yalnızca elle metin girişi var — URL/PDF/DOCX/CSV içe aktarma henüz yok (spec'in kendi sıralamasında sonraki adımlar), ve retrieval (AI'ın bu chunk'ları gerçekten kullanması) Faz 5'e ait. |
 | 8 | Otomasyonlar | `PARTIAL` | `app/(app)/automations/page.tsx`'te açma/kapama `toggle(id)` gerçek client-side state güncelliyor (istatistik şeridi tepki veriyor) — ama backend'e yazılmıyor, sayfa yenilenince sıfırlanıyor. Kural motoru veya "Yeni kural" işlevi yok. |
 | 9 | Dashboard/KPI | `DEMO_ONLY` | `app/(app)/dashboard/page.tsx`'teki tüm sayılar (`kpis`, `sla`, `csatTrend`, `agentPerf` vb.) `lib/demo/data.ts`'ten sabit — fetch/sorgu yok. |
 | 10 | Abonelik/faturalandırma | `DEMO_ONLY` | Stripe/ödeme SDK'sı yok, checkout route yok. Fiyat kartları (`app.config.ts` → `marketing.pricing`) yalnızca görsel metin; CTA'lar hiçbir işleme bağlı değil. |
@@ -33,9 +33,9 @@ yansıtır. `@anthropic-ai/sdk`, `stripe`, `@sentry/*` hâlâ kurulu değil.
 
 ## Sonraki fazın önkoşulları
 
-Faz 4 (bilgi tabanı) ve Faz 5 (AI) için:
+Faz 5 (AI cevap üretimi) için:
 
-- Anthropic API anahtarı (Faz 5'te lazım, şimdiden alınabilir).
+- Anthropic API anahtarı (henüz alınmadıysa şimdi lazım olacak).
 - Faz 10 için ödeme sağlayıcısı kararı: Stripe mi, yoksa Türkiye için iyzico/PayTR mi.
 - Meta/Instagram uygulaması (Faz 8'e kadar gerekmiyor, erken karar gerekmez).
 - Kullanıcının WhatsApp erişimi geri geldiğinde: gerçek cihaz round-trip
@@ -77,3 +77,8 @@ Faz 4 (bilgi tabanı) ve Faz 5 (AI) için:
   olmaması nedeniyle tamamlanamadı — kapsam dışı bırakılanlar: cursor
   pagination, Supabase Realtime, etiketleme/atama/iç not, AI önerisi
   paneli (Faz 5 bekliyor).
+- **Faz 4** — Kısmi tamamlandı (`PARTIAL`, bkz. tablo satır 7): bilgi
+  tabanı artık gerçek — makale CRUD, arama, kategori filtresi, yayında
+  chunk'lama. Canlı RLS testiyle doğrulandı. Kapsam dışı: URL/dosya
+  içe aktarma (spec'in kendi MVP sıralamasında sonraki adımlar),
+  AI'ın bu içeriği gerçekten kullanması (Faz 5).

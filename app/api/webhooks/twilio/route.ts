@@ -3,6 +3,7 @@ import twilio from "twilio";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { serverEnv } from "@/lib/env.server";
 import { publicEnv } from "@/lib/env";
+import { runAutomationsForMessage } from "@/lib/automations/engine";
 
 /**
  * Twilio WhatsApp inbound message webhook.
@@ -131,8 +132,12 @@ export async function POST(request: Request) {
       provider_message_id: messageSid,
       status: "delivered",
     });
-    // Duplicate MessageSid (Twilio retried the same message) — not an error.
+    // Duplicate MessageSid (Twilio retried the same message) — not an error,
+    // but skip re-running automations for it (already ran the first time).
     if (messageError && messageError.code !== "23505") throw messageError;
+    if (!messageError) {
+      await runAutomationsForMessage(admin, { organizationId, conversationId, messageId: messageSid, messageBody: body });
+    }
 
     await admin
       .from("conversations")

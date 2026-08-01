@@ -9,6 +9,11 @@
 
 export type OrgRole = "owner" | "admin" | "agent" | "viewer";
 
+export type AutomationAction =
+  | { type: "reply"; body: string }
+  | { type: "tag"; tagName: string }
+  | { type: "assign"; memberId: string };
+
 export interface Database {
   public: {
     Tables: {
@@ -330,6 +335,107 @@ export interface Database {
           content: string;
         };
         Update: Partial<Omit<Database["public"]["Tables"]["knowledge_chunks"]["Insert"], "organization_id" | "document_id">>;
+        Relationships: [];
+      };
+      automation_rules: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          trigger_type: "keyword" | "off_hours";
+          conditions: { keywords?: string[] };
+          actions: AutomationAction[];
+          priority: number;
+          is_active: boolean;
+          respects_business_hours: boolean;
+          max_runs_per_conversation: number | null;
+          cooldown_seconds: number | null;
+          on_failure: "stop" | "retry" | "ignore";
+          last_run_at: string | null;
+          created_by: string | null;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          name: string;
+          trigger_type: "keyword" | "off_hours";
+          conditions?: { keywords?: string[] };
+          actions?: AutomationAction[];
+          priority?: number;
+          is_active?: boolean;
+          respects_business_hours?: boolean;
+          max_runs_per_conversation?: number | null;
+          cooldown_seconds?: number | null;
+          on_failure?: "stop" | "retry" | "ignore";
+          last_run_at?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["automation_rules"]["Insert"], "organization_id">>;
+        Relationships: [];
+      };
+      automation_runs: {
+        Row: {
+          id: string;
+          organization_id: string;
+          rule_id: string;
+          conversation_id: string | null;
+          trigger_event_id: string | null;
+          status: "success" | "failed" | "skipped";
+          error_message: string | null;
+          started_at: string;
+          finished_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          rule_id: string;
+          conversation_id?: string | null;
+          trigger_event_id?: string | null;
+          status?: "success" | "failed" | "skipped";
+          error_message?: string | null;
+          finished_at?: string | null;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["automation_runs"]["Insert"], "organization_id" | "rule_id">>;
+        Relationships: [];
+      };
+      tags: {
+        Row: { id: string; organization_id: string; name: string; color: string | null; created_at: string };
+        Insert: { id?: string; organization_id: string; name: string; color?: string | null };
+        Update: Partial<Omit<Database["public"]["Tables"]["tags"]["Insert"], "organization_id">>;
+        Relationships: [];
+      };
+      conversation_tags: {
+        Row: { organization_id: string; conversation_id: string; tag_id: string; created_at: string };
+        Insert: { organization_id: string; conversation_id: string; tag_id: string };
+        Update: Partial<Database["public"]["Tables"]["conversation_tags"]["Insert"]>;
+        Relationships: [];
+      };
+      automation_actions: {
+        Row: {
+          id: string;
+          organization_id: string;
+          run_id: string;
+          action_type: string;
+          payload: AutomationAction;
+          status: "success" | "failed" | "skipped";
+          error_message: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          run_id: string;
+          action_type: string;
+          payload: AutomationAction;
+          status?: "success" | "failed" | "skipped";
+          error_message?: string | null;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["automation_actions"]["Insert"], "organization_id" | "run_id">>;
         Relationships: [];
       };
     };

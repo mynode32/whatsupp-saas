@@ -71,3 +71,66 @@ export async function connectTwilioAction(
   revalidatePath("/settings");
   return status === "connected" ? { success: true } : { error: lastError ?? "Connection failed" };
 }
+
+const webChannelSchema = z.object({
+  organizationId: z.uuid(),
+  welcomeMessage: z.string().optional(),
+  color: z.string().optional(),
+  allowedOrigins: z.string().optional(),
+});
+
+/** Creates (or reconfigures) the org's web chat widget — generates the public widget key on first setup. */
+export async function createWebChannelAction(
+  _prev: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
+  const parsed = webChannelSchema.safeParse({
+    organizationId: formData.get("organizationId"),
+    welcomeMessage: formData.get("welcomeMessage") || undefined,
+    color: formData.get("color") || undefined,
+    allowedOrigins: formData.get("allowedOrigins") || undefined,
+  });
+  if (!parsed.success) return { error: "Invalid input" };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in" };
+
+  const credentials = {
+    welcomeMessage: parsed.data.welcomeMessage ?? "Merhaba! Nasıl yardımcı olabiliriz?",
+    color: parsed.data.color ?? "#4f46e5",
+    allowedOrigins: parsed.data.allowedOrigins
+      ? parsed.data.allowedOrigins.split(",").map((o) => o.trim()).filter(Boolean)
+      : [],
+  };
+
+  const { data: existing } = await supabase
+    .from("channel_connections")
+    .select("id, external_id")
+    .eq("organization_id", parsed.data.organizationId)
+    .eq("channel_type", "web")
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase.from("channel_connections").update({ credentials, status: "connected" }).eq("id", existing.id);
+    if (error) return { error: error.message };
+  } else {
+    const widgetKey = crypto.randomUUID();
+    const { error } = await supabase.from("channel_connections").insert({
+      organization_id: parsed.data.organizationId,
+      channel_type: "web",
+      provider: "native",
+      external_id: widgetKey,
+      display_name: "Web chat widget",
+      credentials,
+      status: "connected",
+      created_by: user.id,
+    });
+    if (error) return { error: error.message };
+  }
+
+  revalidatePath("/settings");
+  return { success: true };
+}

@@ -14,6 +14,12 @@ export type AutomationAction =
   | { type: "tag"; tagName: string }
   | { type: "assign"; memberId: string };
 
+export type WebWidgetConfig = {
+  welcomeMessage?: string;
+  color?: string;
+  allowedOrigins?: string[];
+};
+
 export interface Database {
   public: {
     Tables: {
@@ -133,6 +139,7 @@ export interface Database {
           provider: "twilio" | "meta" | "native";
           external_id: string | null;
           display_name: string | null;
+          credentials: WebWidgetConfig | Record<string, never>;
           status: "disconnected" | "connected" | "error";
           last_event_at: string | null;
           last_error: string | null;
@@ -147,6 +154,7 @@ export interface Database {
           provider: "twilio" | "meta" | "native";
           external_id?: string | null;
           display_name?: string | null;
+          credentials?: WebWidgetConfig | Record<string, never>;
           status?: "disconnected" | "connected" | "error";
           last_event_at?: string | null;
           last_error?: string | null;

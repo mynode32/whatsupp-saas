@@ -10,7 +10,7 @@ import { Input, Label } from "@/components/ui/input";
 import { Icon } from "@/components/ui/icon";
 import { useLang } from "@/components/i18n/language-provider";
 import { updateOrganizationBrandAction } from "@/lib/actions/organizations";
-import { connectTwilioAction } from "@/lib/actions/channels";
+import { connectTwilioAction, createWebChannelAction } from "@/lib/actions/channels";
 import {
   inviteMemberAction,
   cancelInvitationAction,
@@ -78,7 +78,10 @@ export function SettingsClient({
 
       {/* Channels */}
       {organization && isAdmin && (
-        <ChannelsCard organizationId={organization.id} channels={channels} />
+        <>
+          <ChannelsCard organizationId={organization.id} channels={channels} />
+          <WebChatCard organizationId={organization.id} channels={channels} />
+        </>
       )}
 
       {/* Team */}
@@ -243,6 +246,62 @@ function ChannelsCard({ organizationId, channels }: { organizationId: string; ch
             {ui.testConnection}
           </Button>
           {state.error && <p className="text-sm text-destructive">{state.error}</p>}
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function WebChatCard({ organizationId, channels }: { organizationId: string; channels: ChannelConnection[] }) {
+  const { ui } = useLang();
+  const [state, formAction, pending] = useActionState(createWebChannelAction, initialState);
+  const web = channels.find((c) => c.channel_type === "web");
+  const widgetConfig = web && "welcomeMessage" in web.credentials ? web.credentials : null;
+
+  const embedCode = web
+    ? `<script src="${typeof window !== "undefined" ? window.location.origin : ""}/widget.js" data-widget-key="${web.external_id}" async></script>`
+    : null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{ui.webChat}</CardTitle>
+        <p className="text-sm text-muted-foreground">{ui.webChatHint}</p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {embedCode && (
+          <div className="space-y-1.5">
+            <Label>{ui.embedCode}</Label>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 overflow-x-auto rounded-lg bg-muted px-3 py-2 text-xs">{embedCode}</code>
+              <Button type="button" variant="outline" onClick={() => navigator.clipboard.writeText(embedCode)}>
+                {ui.copy}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <form action={formAction} className="space-y-3">
+          <input type="hidden" name="organizationId" value={organizationId} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="welcomeMessage">{ui.welcomeMessage}</Label>
+              <Input id="welcomeMessage" name="welcomeMessage" defaultValue={widgetConfig?.welcomeMessage ?? ""} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="color">{ui.widgetColor}</Label>
+              <Input id="color" name="color" type="color" defaultValue={widgetConfig?.color ?? "#4f46e5"} className="h-10 p-1" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="allowedOrigins">{ui.allowedOrigins}</Label>
+            <Input id="allowedOrigins" name="allowedOrigins" defaultValue={widgetConfig?.allowedOrigins?.join(", ") ?? ""} placeholder="https://example.com" />
+          </div>
+          {state.error && <p className="text-sm text-destructive">{state.error}</p>}
+          <Button type="submit" disabled={pending} className="gap-2">
+            {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+            {ui.setupWidget}
+          </Button>
         </form>
       </CardContent>
     </Card>

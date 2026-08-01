@@ -37,16 +37,17 @@ async function executeAction(
   ctx: { organizationId: string; conversationId: string },
 ) {
   if (action.type === "reply") {
-    const { data: conversation } = await admin.from("conversations").select("contact_id").eq("id", ctx.conversationId).single();
+    const { data: conversation } = await admin
+      .from("conversations")
+      .select("contact_id, channel_connection_id")
+      .eq("id", ctx.conversationId)
+      .single();
     if (!conversation) throw new Error("Conversation not found");
 
-    const { data: identity } = await admin
-      .from("contact_identities")
-      .select("external_id")
-      .eq("contact_id", conversation.contact_id)
-      .eq("channel", "whatsapp")
-      .maybeSingle();
-    if (!identity) throw new Error("Contact has no WhatsApp number");
+    const channelType = conversation.channel_connection_id
+      ? (await admin.from("channel_connections").select("channel_type").eq("id", conversation.channel_connection_id).single()).data
+          ?.channel_type
+      : null;
 
     const { data: message } = await admin
       .from("messages")
@@ -62,30 +63,48 @@ async function executeAction(
       .single();
     if (!message) throw new Error("Could not queue automation reply");
 
-    try {
-      const client = createTwilioClient();
-      const twilioMessage = await client.messages.create({
-        from: serverEnv.TWILIO_WHATSAPP_FROM!,
-        to: identity.external_id,
-        body: action.body,
-        statusCallback: `${publicEnv.NEXT_PUBLIC_APP_URL}/api/webhooks/twilio/status`,
-      });
-      await admin
-        .from("messages")
-        .update({ provider_message_id: twilioMessage.sid, status: "sent", sent_at: new Date().toISOString() })
-        .eq("id", message.id);
-      await admin.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", ctx.conversationId);
-    } catch (err) {
-      await admin
-        .from("messages")
-        .update({
-          status: "failed",
-          failed_at: new Date().toISOString(),
-          error_reason: err instanceof Error ? err.message : "Twilio send failed",
-        })
-        .eq("id", message.id);
-      throw err;
+    if (channelType === "whatsapp") {
+      const { data: identity } = await admin
+        .from("contact_identities")
+        .select("external_id")
+        .eq("contact_id", conversation.contact_id)
+        .eq("channel", "whatsapp")
+        .maybeSingle();
+      if (!identity) {
+        await admin.from("messages").update({ status: "failed", failed_at: new Date().toISOString(), error_reason: "Contact has no WhatsApp number" }).eq("id", message.id);
+        throw new Error("Contact has no WhatsApp number");
+      }
+      try {
+        const client = createTwilioClient();
+        const twilioMessage = await client.messages.create({
+          from: serverEnv.TWILIO_WHATSAPP_FROM!,
+          to: identity.external_id,
+          body: action.body,
+          statusCallback: `${publicEnv.NEXT_PUBLIC_APP_URL}/api/webhooks/twilio/status`,
+        });
+        await admin
+          .from("messages")
+          .update({ provider_message_id: twilioMessage.sid, status: "sent", sent_at: new Date().toISOString() })
+          .eq("id", message.id);
+      } catch (err) {
+        await admin
+          .from("messages")
+          .update({
+            status: "failed",
+            failed_at: new Date().toISOString(),
+            error_reason: err instanceof Error ? err.message : "Twilio send failed",
+          })
+          .eq("id", message.id);
+        throw err;
+      }
+    } else {
+      // Web chat (and any future first-party channel): no external
+      // provider to call — the reply just lands in the messages table
+      // and the widget picks it up on its next poll.
+      await admin.from("messages").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", message.id);
     }
+
+    await admin.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", ctx.conversationId);
   } else if (action.type === "tag") {
     const { data: existingTag } = await admin
       .from("tags")

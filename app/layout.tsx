@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "@/lib/env.server"; // validates env vars at server startup
 // ── FONTS ─────────────────────────────────────────────────────────────────
 // Replio — calm geometric. Plus Jakarta Sans (display) + Inter (sans) +
 // JetBrains Mono (numerals/labels). Keep the CSS variable names

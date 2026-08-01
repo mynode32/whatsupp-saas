@@ -9,16 +9,16 @@ demo verisiyle çalışan bir arayüz kabuğu. Her fazın sonunda güncellenir.
 - `PRODUCTION_READY` — gerçek backend ile uçtan uca çalışıyor.
 - `BLOCKED` — sağlanmamış bir bağımlılık (anahtar, hesap, karar) olmadan ilerleyemez.
 
-**Genel tespit:** Repo'da `app/api` dizini, `middleware.ts`, `lib/supabase*`,
-`lib/auth*` veya `lib/env.ts` yok. `package.json`'da `@supabase/*`, `twilio`,
-`@anthropic-ai/sdk`, `stripe`, `@sentry/*` paketleri **kurulu değil**. Bu proje
-şu an saf bir Next.js/Tailwind arayüz kabuğu — hiçbir dış servise bağlı değil.
+**Genel tespit (Faz 0 anındaki, artık kısmen eski):** Faz 1-3 ile birlikte
+`app/api`, `proxy.ts`, `lib/supabase/*`, `lib/env.ts`/`lib/env.server.ts`,
+ve `@supabase/*`/`twilio` paketleri eklendi — aşağıdaki tablo güncel durumu
+yansıtır. `@anthropic-ai/sdk`, `stripe`, `@sentry/*` hâlâ kurulu değil.
 
 | # | Alan | Durum | Kanıt |
 |---|---|---|---|
 | 1 | Kimlik doğrulama | `PRODUCTION_READY` | Gerçek Supabase Auth: e-posta/şifre kayıt+doğrulama, giriş, şifremi unuttum/yenile, güvenli çıkış (`lib/actions/auth.ts`), `proxy.ts` ile route koruması + session yenileme. Demo bypass yalnızca `DEMO_MODE=true` + dev'de. Canlı testte doğrulandı. |
 | 2 | Organizasyon/ekip yapısı | `PRODUCTION_READY` | Onboarding (`app/onboarding`), davet/rol/kaldırma (`lib/actions/members.ts`, Settings'te rol bazlı UI), son-owner koruması DB trigger'ıyla. Canlı çapraz-organizasyon testiyle doğrulandı (bkz. Faz 2 geçmişi — bir RLS açığı bulunup düzeltildi). |
-| 3 | WhatsApp alma/gönderme | `DEMO_ONLY` | Twilio paketi kurulu değil, webhook route yok (`app/api` yok). `lib/demo/data.ts`'te `channel: "whatsapp"` etiketli mock konuşmalar var. |
+| 3 | WhatsApp alma/gönderme | `PARTIAL` | Gerçek Twilio entegrasyonu: imza doğrulamalı webhook (`app/api/webhooks/twilio`), idempotent mesaj/konuşma/kişi oluşturma, gerçek gönderme (`lib/actions/messages.ts`) + status callback. Canlı test edildi (bkz. Faz 3 geçmişi) — gerçek WhatsApp cihaz round-trip'i kullanıcının WhatsApp erişimi geri geldiğinde tamamlanacak. Şu an tek paylaşımlı Twilio Sandbox numarası kullanılıyor (multi-org gerçek numara ayrımı yok), template/24-saat penceresi UI'da gösterilmiyor — bunlar `PARTIAL` nedeni. |
 | 4 | Instagram mesajları | `DEMO_ONLY` | Meta/Instagram API kodu yok. Sadece mock verilerde `channel: "instagram"` etiketi. |
 | 5 | Web chat | `DEMO_ONLY` | Gömülebilir widget bileşeni/scripti yok. `web` sadece mock konuşmalarda üçüncü bir kanal etiketi. |
 | 6 | AI cevap önerisi | `DEMO_ONLY` | Anthropic/OpenAI SDK kurulu değil, LLM çağıran route yok. Önerilen yanıt metinleri `lib/demo/data.ts`'te sabit string. "Gönder / Devret / Düzenle" butonlarının `onClick`'i yok. |
@@ -33,12 +33,13 @@ demo verisiyle çalışan bir arayüz kabuğu. Her fazın sonunda güncellenir.
 
 ## Sonraki fazın önkoşulları
 
-Faz 3 (WhatsApp/Twilio) başlamadan önce gerekecek:
+Faz 4 (bilgi tabanı) ve Faz 5 (AI) için:
 
-- Twilio hesabı ve WhatsApp Business gönderici numarası.
-- Anthropic API anahtarı (Faz 5'e kadar gerekmiyor, erken alınabilir).
+- Anthropic API anahtarı (Faz 5'te lazım, şimdiden alınabilir).
 - Faz 10 için ödeme sağlayıcısı kararı: Stripe mi, yoksa Türkiye için iyzico/PayTR mi.
 - Meta/Instagram uygulaması (Faz 8'e kadar gerekmiyor, erken karar gerekmez).
+- Kullanıcının WhatsApp erişimi geri geldiğinde: gerçek cihaz round-trip
+  testi (sandbox join + gerçek mesaj gönder/al) tamamlanmalı.
 
 ## Faz geçmişi
 
@@ -61,3 +62,18 @@ Faz 3 (WhatsApp/Twilio) başlamadan önce gerekecek:
   fonksiyonla düzeltildi). Ayrıca org oluşturma sırasında `RETURNING`
   satırının okunamadığı ayrı bir bug bulunup düzeltildi (`0010`). Her
   ikisi de gerçek kullanıcılarla test edilip test verileri temizlendi.
+- **Faz 3** — Kısmi tamamlandı (`PARTIAL`, bkz. tablo satır 3): gerçek
+  Twilio WhatsApp entegrasyonu — kanal bağlantısı (Settings), imzalı
+  webhook ile gelen mesaj işleme (idempotent), mesaj gönderme + status
+  callback, Conversations sayfası gerçek veriyle (demo veri kalmadı).
+  ngrok ile yerelde uçtan uca test edildi: kendi ürettiğim geçerli
+  Twilio imzalı istek → contact/conversation/message doğru oluştu,
+  duplicate webhook idempotent, yanlış imza reddedildi; gerçek
+  tarayıcıda (kullanıcı üzerinden) konuşma doğru göründü, gönderme
+  gerçek Twilio API'sine gitti ve beklenen sandbox-red hatasını doğru
+  gösterdi. Bu arada "son owner" trigger'ının organizasyon silmeyi de
+  (yanlışlıkla) engellediği bulunup düzeltildi (migration `0012`).
+  Gerçek WhatsApp cihazından round-trip, kullanıcının WhatsApp erişimi
+  olmaması nedeniyle tamamlanamadı — kapsam dışı bırakılanlar: cursor
+  pagination, Supabase Realtime, etiketleme/atama/iç not, AI önerisi
+  paneli (Faz 5 bekliyor).

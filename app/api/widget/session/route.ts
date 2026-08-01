@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveWidgetChannel, corsHeaders } from "@/lib/widget/auth";
-import { isRateLimited } from "@/lib/widget/rate-limit";
+import { isRateLimited } from "@/lib/rate-limit";
 
 const bodySchema = z.object({ widgetKey: z.string().min(1), visitorId: z.string().min(1) });
 

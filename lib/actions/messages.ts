@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createTwilioClient } from "@/lib/twilio/client";
 import { serverEnv } from "@/lib/env.server";
 import { publicEnv } from "@/lib/env";
+import { isRateLimited } from "@/lib/rate-limit";
 import type { AuthActionState } from "@/lib/actions/auth";
 
 const sendSchema = z.object({
@@ -28,6 +29,10 @@ export async function sendMessageAction(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not signed in" };
+
+  if (isRateLimited(`send:${user.id}`, 30)) {
+    return { error: "Sending too fast — slow down a bit." };
+  }
 
   const { data: conversation, error: convError } = await supabase
     .from("conversations")

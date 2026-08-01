@@ -43,6 +43,37 @@ demo verisiyle çalışan bir arayüz kabuğu. Her fazın sonunda güncellenir.
 **Dağıtım notu:** `0014` ve `0015` migration'ları bağlı Supabase projesine
 uygulandı ve canlı testle doğrulandı — beklenen aksiyon yok.
 
+## Faz 14 — WhatsApp: kendi Twilio hesabını bağlama (tamamlandı, canlıda doğrulandı)
+
+Daha önce WhatsApp gönderme/webhook doğrulama tamamen `.env.local`'deki tek
+bir global Twilio hesabına bağlıydı — gerçek çoklu-kiracı SaaS için her
+müşterinin kendi Twilio hesabını/numarasını bağlayabilmesi gerekiyordu.
+
+- `0016_whatsapp_byo_credentials.sql`: yeni `channel_secrets` tablosu ekler.
+  `channel_connections.credentials` her org üyesine (viewer dahil) RLS ile
+  açık olduğu için sır saklamaya uygun değildi — `channel_secrets`'ta RLS
+  açık ama `authenticated`/`anon` için hiç policy yok, yalnızca servis-rolü
+  (sunucu tarafı) erişebiliyor. `validate_tenant_relationships()` trigger'ına
+  (0015'teki düzeltilmiş nested-IF desende) bu tablo için de bir dal eklendi.
+- Settings'te gerçek bir bağlama formu (Account SID, Auth Token, WhatsApp
+  numarası): Twilio API'sine karşı doğrulanıyor, admin/owner rolü zorunlu,
+  "bağlantıyı kaldır" butonu var.
+- Gönderme (`lib/actions/messages.ts`, `lib/automations/engine.ts`) ve her
+  iki webhook (`app/api/webhooks/twilio/route.ts` ve `.../status/route.ts`)
+  artık global `.env.local` yerine ilgili organizasyonun kendi kayıtlı
+  Twilio hesabını kullanıyor. Webhook imza doğrulaması, "To" numarasından
+  hangi organizasyona ait olduğunu bulup **o organizasyonun kendi** auth
+  token'ıyla doğruluyor (paylaşımlı tek sır yok).
+- Canlı testle doğrulandı (gerçek Twilio hesabıyla): kimlik bilgisi
+  doğrulama, `channel_secrets` kaydı organizasyon sahibine bile RLS üzerinden
+  görünmüyor, bir organizasyonun sırrını başka bir organizasyona bağlamaya
+  çalışmak trigger tarafından reddedildi, aynı numarayı iki organizasyon
+  bağlamaya çalışınca reddedildi, gerçek imzalı HTTP isteğiyle inbound
+  webhook doğru organizasyona mesaj yazdı, sahte imza 403 ile reddedildi.
+  Tüm test verileri temizlendi.
+- Kapsam dışı: Embedded Signup / tek-tık bağlama (Twilio ISV onayı gerektirir,
+  kod değil iş süreci) — bkz. sıradaki fazlar.
+
 **Durum tanımları:**
 - `DEMO_ONLY` — sadece statik/mock veri gösterir, gerçek backend çağrısı yok.
 - `PARTIAL` — bir miktar gerçek bağlantı var ama eksik/yarım.
@@ -58,7 +89,7 @@ yansıtır. `@anthropic-ai/sdk`, `stripe`, `@sentry/*` hâlâ kurulu değil.
 |---|---|---|---|
 | 1 | Kimlik doğrulama | `PRODUCTION_READY` | Gerçek Supabase Auth: e-posta/şifre kayıt+doğrulama, giriş, şifremi unuttum/yenile, güvenli çıkış (`lib/actions/auth.ts`), `proxy.ts` ile route koruması + session yenileme. Demo bypass yalnızca `DEMO_MODE=true` + dev'de. Canlı testte doğrulandı. |
 | 2 | Organizasyon/ekip yapısı | `PRODUCTION_READY` | Onboarding (`app/onboarding`), davet/rol/kaldırma (`lib/actions/members.ts`, Settings'te rol bazlı UI), son-owner koruması DB trigger'ıyla. Canlı çapraz-organizasyon testiyle doğrulandı (bkz. Faz 2 geçmişi — bir RLS açığı bulunup düzeltildi). |
-| 3 | WhatsApp alma/gönderme | `PARTIAL` | Gerçek Twilio entegrasyonu: imza doğrulamalı webhook (`app/api/webhooks/twilio`), idempotent mesaj/konuşma/kişi oluşturma, gerçek gönderme (`lib/actions/messages.ts`) + status callback. Canlı test edildi (bkz. Faz 3 geçmişi) — gerçek WhatsApp cihaz round-trip'i kullanıcının WhatsApp erişimi geri geldiğinde tamamlanacak. Şu an tek paylaşımlı Twilio Sandbox numarası kullanılıyor (multi-org gerçek numara ayrımı yok), template/24-saat penceresi UI'da gösterilmiyor — bunlar `PARTIAL` nedeni. |
+| 3 | WhatsApp alma/gönderme | `PARTIAL` | Gerçek Twilio entegrasyonu, artık **her organizasyon kendi Twilio hesabını bağlıyor** (Faz 14, `lib/actions/channels.ts`, `channel_secrets` tablosu): imza doğrulamalı webhook (`app/api/webhooks/twilio`, org-bazlı auth token ile), idempotent mesaj/konuşma/kişi oluşturma, org-bazlı gönderme (`lib/actions/messages.ts`) + status callback. Canlı test edildi (bkz. Faz 3 ve Faz 14 geçmişi) — gerçek WhatsApp cihaz round-trip'i kullanıcının WhatsApp erişimi geri geldiğinde tamamlanacak. `PARTIAL` nedeni: template/24-saat penceresi UI'da gösterilmiyor, tek-tık Embedded Signup yok (müşteri kendi Twilio hesabında birkaç adım atmak zorunda). |
 | 4 | Instagram mesajları | `BLOCKED` | Kod yok. Meta Developer App + Instagram Business hesabı gerekiyor (Twilio gibi ücretsiz sandbox'ı yok) — kullanıcı henüz bu hesaplara sahip değil, tahmin yürütülmedi, açıkça soruldu ve ertelendi. |
 | 5 | Web chat | `PRODUCTION_READY` | Gerçek gömülebilir widget (`public/widget.js`, vanilla JS, XSS'e karşı yalnızca `textContent`) + public API (`app/api/widget/*`, service-role, origin allowlist, rate limit). Otomasyon motoru kanal-farkında hale getirildi (web'de Twilio'ya gitmiyor). Settings'te embed kodu + tema/karşılama mesajı ayarı. Canlı test edildi: yanlış origin 403, doğru origin çalışıyor, otomasyon tetiklendi ve widget pollinginde göründü, başka ziyaretçinin konuşmasına erişim 404, rate limit eşzamanlı yükte doğrulandı. Kapsam dışı: CAPTCHA (ek dış servis gerektirir), dosya yükleme. |
 | 6 | AI cevap önerisi | `DEMO_ONLY` | Anthropic/OpenAI SDK kurulu değil, LLM çağıran route yok. Önerilen yanıt metinleri `lib/demo/data.ts`'te sabit string. "Gönder / Devret / Düzenle" butonlarının `onClick`'i yok. |

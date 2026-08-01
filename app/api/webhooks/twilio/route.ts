@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 import twilio from "twilio";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { serverEnv } from "@/lib/env.server";
 import { publicEnv } from "@/lib/env";
 import { runAutomationsForMessage } from "@/lib/automations/engine";
 
 /**
  * Twilio WhatsApp inbound message webhook.
+ *
+ * Each organization brings its own Twilio account (lib/actions/channels.ts),
+ * so there's no single shared auth token to validate against. The "To"
+ * number picks which organization's channel this claims to be for, and
+ * *that* org's own stored auth token is what verifies the signature —
+ * an unrecognized number is rejected before any secret lookup happens, and
+ * a forged signature for a real number still fails without that org's
+ * actual token.
  *
  * Acknowledges only successfully processed events. Downstream failures
  * return 500 so Twilio can retry; failed duplicates re-enter processing.
@@ -21,21 +28,38 @@ export async function POST(request: Request) {
   // tunnel/proxy — reconstruct it from NEXT_PUBLIC_APP_URL.
   const url = `${publicEnv.NEXT_PUBLIC_APP_URL}${new URL(request.url).pathname}`;
 
-  if (!serverEnv.TWILIO_AUTH_TOKEN || !signature) {
-    return NextResponse.json({ error: "Not configured" }, { status: 500 });
-  }
-
-  const validSignature = twilio.validateRequest(serverEnv.TWILIO_AUTH_TOKEN, signature, url, params);
-  if (!validSignature) {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 403 });
-  }
-
   const messageSid = params.MessageSid;
   const from = params.From; // e.g. "whatsapp:+15551234567"
   const to = params.To; // e.g. "whatsapp:+14155238886"
   const body = params.Body ?? "";
 
+  if (!signature || !to) {
+    return NextResponse.json({ error: "Invalid request" }, { status: 403 });
+  }
+
   const admin = createAdminClient();
+
+  const { data: channel } = await admin
+    .from("channel_connections")
+    .select("id, organization_id")
+    .eq("channel_type", "whatsapp")
+    .eq("provider", "twilio")
+    .eq("status", "connected")
+    .eq("external_id", to)
+    .maybeSingle();
+  if (!channel) return NextResponse.json({ error: "No connected WhatsApp channel for this number" }, { status: 404 });
+
+  const { data: secret } = await admin
+    .from("channel_secrets")
+    .select("auth_token")
+    .eq("channel_connection_id", channel.id)
+    .maybeSingle();
+  if (!secret) return NextResponse.json({ error: "Channel not fully configured" }, { status: 500 });
+
+  const validSignature = twilio.validateRequest(secret.auth_token, signature, url, params);
+  if (!validSignature) {
+    return NextResponse.json({ error: "Invalid signature" }, { status: 403 });
+  }
 
   // Log every valid webhook, deduped by (provider, external_event_id).
   const { error: logError } = await admin.from("webhook_events").insert({
@@ -65,21 +89,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    // A shared Twilio Sandbox number can't disambiguate orgs by "To" —
-    // this picks the first connected WhatsApp channel. With real
-    // per-org purchased numbers (post-Sandbox), external_id uniquely
-    // identifies the org and this becomes an exact match.
-    const { data: channel } = await admin
-      .from("channel_connections")
-      .select("id, organization_id")
-      .eq("channel_type", "whatsapp")
-      .eq("provider", "twilio")
-      .eq("status", "connected")
-      .eq("external_id", to)
-      .maybeSingle();
-
-    if (!channel) throw new Error(`No connected WhatsApp channel for ${to}`);
-
     const { organization_id: organizationId, id: channelConnectionId } = channel;
 
     const { data: contact } = await admin

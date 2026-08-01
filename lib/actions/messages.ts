@@ -3,8 +3,8 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createTwilioClient } from "@/lib/twilio/client";
-import { serverEnv } from "@/lib/env.server";
 import { publicEnv } from "@/lib/env";
 import { isRateLimitedShared } from "@/lib/rate-limit.server";
 import type { AuthActionState } from "@/lib/actions/auth";
@@ -44,7 +44,7 @@ export async function sendMessageAction(
   const { data: channel } = conversation.channel_connection_id
     ? await supabase
         .from("channel_connections")
-        .select("channel_type")
+        .select("channel_type, external_id")
         .eq("id", conversation.channel_connection_id)
         .maybeSingle()
     : { data: null };
@@ -76,9 +76,17 @@ export async function sendMessageAction(
         .maybeSingle();
       if (!identity) throw new Error("This contact has no WhatsApp number on file");
 
-      const client = createTwilioClient();
+      const admin = createAdminClient();
+      const { data: secret } = await admin
+        .from("channel_secrets")
+        .select("account_sid, auth_token")
+        .eq("channel_connection_id", conversation.channel_connection_id!)
+        .maybeSingle();
+      if (!secret) throw new Error("This organization hasn't connected a WhatsApp number yet");
+
+      const client = createTwilioClient(secret.account_sid, secret.auth_token);
       const twilioMessage = await client.messages.create({
-        from: serverEnv.TWILIO_WHATSAPP_FROM!,
+        from: channel.external_id!,
         to: identity.external_id,
         body: parsed.data.body,
         statusCallback: `${publicEnv.NEXT_PUBLIC_APP_URL}/api/webhooks/twilio/status`,

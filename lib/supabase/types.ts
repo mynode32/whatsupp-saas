@@ -186,6 +186,24 @@ export interface Database {
         Update: Partial<Omit<Database["public"]["Tables"]["channel_connections"]["Insert"], "organization_id">>;
         Relationships: [];
       };
+      channel_secrets: {
+        Row: {
+          channel_connection_id: string;
+          organization_id: string;
+          account_sid: string;
+          auth_token: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          channel_connection_id: string;
+          organization_id: string;
+          account_sid: string;
+          auth_token: string;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["channel_secrets"]["Insert"], "organization_id" | "channel_connection_id">>;
+        Relationships: [];
+      };
       contacts: {
         Row: {
           id: string;

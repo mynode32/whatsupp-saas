@@ -3,27 +3,153 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { createTwilioClient, isTwilioConfigured } from "@/lib/twilio/client";
-import { serverEnv } from "@/lib/env.server";
-import { createNotification } from "@/lib/notifications/create";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createTwilioClient } from "@/lib/twilio/client";
 import { logAuditEvent } from "@/lib/audit/log";
 import type { AuthActionState } from "@/lib/actions/auth";
 import { normalizeAllowedOrigins } from "@/lib/widget/origins";
 
-const connectSchema = z.object({ organizationId: z.uuid() });
+const connectSchema = z.object({
+  organizationId: z.uuid(),
+  accountSid: z.string().regex(/^AC[a-f0-9]{32}$/i, "Twilio Account SID 'AC' ile başlamalı (34 karakter)"),
+  authToken: z.string().min(32, "Geçerli bir Twilio Auth Token gir"),
+  whatsappFrom: z
+    .string()
+    .regex(/^whatsapp:\+[1-9]\d{6,14}$/, "Format: whatsapp:+14155238886 (ülke koduyla, boşluksuz)"),
+});
 
 /**
- * Tests the Twilio credentials from .env.local and records connection
- * status on the org's channel_connections row. Credentials are global
- * (one Twilio account) for now, not per-org — see the schema comment
- * in 0003_channels_contacts.sql on why per-org secret storage is
- * deliberately deferred.
+ * Bring-your-own Twilio: each organization connects its own Twilio
+ * account + WhatsApp-approved number. Credentials are verified against
+ * Twilio's API, then written to channel_secrets — a service-role-only
+ * table (see 0016) — never to channel_connections.credentials, which
+ * every org member (including viewers) can read.
  */
 export async function connectTwilioAction(
   _prev: AuthActionState,
   formData: FormData,
 ): Promise<AuthActionState> {
-  const parsed = connectSchema.safeParse({ organizationId: formData.get("organizationId") });
+  const parsed = connectSchema.safeParse({
+    organizationId: formData.get("organizationId"),
+    accountSid: formData.get("accountSid"),
+    authToken: formData.get("authToken"),
+    whatsappFrom: formData.get("whatsappFrom"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const { organizationId, accountSid, authToken, whatsappFrom } = parsed.data;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in" };
+
+  // channel_secrets has no RLS policies for authenticated users, so the
+  // admin client below bypasses RLS entirely for it — this role check is
+  // the only thing standing between a non-admin org member and writing
+  // another org's WhatsApp credentials.
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("role")
+    .eq("organization_id", organizationId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!membership || (membership.role !== "owner" && membership.role !== "admin")) {
+    return { error: "Only an owner or admin can connect WhatsApp." };
+  }
+
+  let status: "connected" | "error" = "connected";
+  let lastError: string | null = null;
+  try {
+    const client = createTwilioClient(accountSid, authToken);
+    await client.api.v2010.accounts(accountSid).fetch();
+  } catch (err) {
+    status = "error";
+    lastError = err instanceof Error ? err.message : "Twilio kimlik bilgileri doğrulanamadı";
+  }
+
+  if (status === "error") {
+    await logAuditEvent({
+      organizationId,
+      actorId: user.id,
+      action: "connect_whatsapp_channel",
+      targetType: "channel_connection",
+      metadata: { status },
+    });
+    return { error: lastError ?? "Connection failed" };
+  }
+
+  const admin = createAdminClient();
+  const { data: existing } = await admin
+    .from("channel_connections")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("channel_type", "whatsapp")
+    .maybeSingle();
+
+  const fields = {
+    channel_type: "whatsapp" as const,
+    provider: "twilio" as const,
+    external_id: whatsappFrom,
+    display_name: `WhatsApp (${whatsappFrom.replace("whatsapp:", "")})`,
+    status,
+    last_event_at: new Date().toISOString(),
+    last_error: null,
+    created_by: user.id,
+  };
+
+  const { data: channelRow, error } = existing
+    ? await admin.from("channel_connections").update(fields).eq("id", existing.id).select("id").single()
+    : await admin
+        .from("channel_connections")
+        .insert({ ...fields, organization_id: organizationId })
+        .select("id")
+        .single();
+
+  if (error || !channelRow) {
+    // Unique constraint from 0014: this number is already the active
+    // WhatsApp connection for a different organization.
+    if (error?.code === "23505") {
+      return { error: "This WhatsApp number is already connected to another mynode account." };
+    }
+    return { error: error?.message ?? "Could not save the connection" };
+  }
+
+  const { error: secretError } = await admin.from("channel_secrets").upsert(
+    {
+      channel_connection_id: channelRow.id,
+      organization_id: organizationId,
+      account_sid: accountSid,
+      auth_token: authToken,
+    },
+    { onConflict: "channel_connection_id" },
+  );
+  if (secretError) return { error: secretError.message };
+
+  await logAuditEvent({
+    organizationId,
+    actorId: user.id,
+    action: "connect_whatsapp_channel",
+    targetType: "channel_connection",
+    targetId: channelRow.id,
+    metadata: { status },
+  });
+
+  revalidatePath("/settings");
+  return { success: true };
+}
+
+const disconnectSchema = z.object({ organizationId: z.uuid(), channelConnectionId: z.uuid() });
+
+/** Owner/admin can disconnect a channel without needing DB access. */
+export async function disconnectChannelAction(
+  _prev: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
+  const parsed = disconnectSchema.safeParse({
+    organizationId: formData.get("organizationId"),
+    channelConnectionId: formData.get("channelConnectionId"),
+  });
   if (!parsed.success) return { error: "Invalid input" };
 
   const supabase = await createClient();
@@ -32,73 +158,26 @@ export async function connectTwilioAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not signed in" };
 
-  if (!isTwilioConfigured()) {
-    return { error: "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_WHATSAPP_FROM must be set in .env.local first." };
-  }
-
-  let status: "connected" | "error" = "connected";
-  let lastError: string | null = null;
-
-  try {
-    const client = createTwilioClient();
-    await client.api.v2010.accounts(serverEnv.TWILIO_ACCOUNT_SID!).fetch();
-  } catch (err) {
-    status = "error";
-    lastError = err instanceof Error ? err.message : "Unknown Twilio error";
-  }
-
-  const { data: existing } = await supabase
+  const { error } = await supabase
     .from("channel_connections")
-    .select("id")
-    .eq("organization_id", parsed.data.organizationId)
-    .eq("channel_type", "whatsapp")
-    .maybeSingle();
-
-  const fields = {
-    channel_type: "whatsapp" as const,
-    provider: "twilio" as const,
-    external_id: serverEnv.TWILIO_WHATSAPP_FROM,
-    display_name: `WhatsApp (${serverEnv.TWILIO_WHATSAPP_FROM})`,
-    status,
-    last_event_at: new Date().toISOString(),
-    last_error: lastError,
-    created_by: user.id,
-  };
-
-  const { error } = existing
-    ? await supabase.from("channel_connections").update(fields).eq("id", existing.id)
-    : await supabase.from("channel_connections").insert({ ...fields, organization_id: parsed.data.organizationId });
-
+    .update({ status: "disconnected", last_error: null })
+    .eq("id", parsed.data.channelConnectionId)
+    .eq("organization_id", parsed.data.organizationId);
   if (error) return { error: error.message };
+
+  const admin = createAdminClient();
+  await admin.from("channel_secrets").delete().eq("channel_connection_id", parsed.data.channelConnectionId);
 
   await logAuditEvent({
     organizationId: parsed.data.organizationId,
     actorId: user.id,
-    action: "connect_whatsapp_channel",
+    action: "disconnect_channel",
     targetType: "channel_connection",
-    metadata: { status },
+    targetId: parsed.data.channelConnectionId,
   });
 
-  if (status === "error") {
-    const { data: admins } = await supabase
-      .from("organization_members")
-      .select("user_id")
-      .eq("organization_id", parsed.data.organizationId)
-      .in("role", ["owner", "admin"]);
-    for (const admin of admins ?? []) {
-      await createNotification({
-        organizationId: parsed.data.organizationId,
-        userId: admin.user_id,
-        type: "channel_error",
-        title: "WhatsApp connection failed",
-        body: lastError ?? undefined,
-        link: "/settings",
-      });
-    }
-  }
-
   revalidatePath("/settings");
-  return status === "connected" ? { success: true } : { error: lastError ?? "Connection failed" };
+  return { success: true };
 }
 
 const webChannelSchema = z.object({

@@ -2,7 +2,6 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, AutomationAction } from "@/lib/supabase/types";
 import { createTwilioClient } from "@/lib/twilio/client";
-import { serverEnv } from "@/lib/env.server";
 import { publicEnv } from "@/lib/env";
 import { isWithinBusinessHours } from "@/lib/automations/business-hours";
 
@@ -22,10 +21,10 @@ async function executeAction(
       .single();
     if (!conversation) throw new Error("Conversation not found");
 
-    const channelType = conversation.channel_connection_id
-      ? (await admin.from("channel_connections").select("channel_type").eq("id", conversation.channel_connection_id).single()).data
-          ?.channel_type
+    const channelRow = conversation.channel_connection_id
+      ? (await admin.from("channel_connections").select("channel_type, external_id").eq("id", conversation.channel_connection_id).single()).data
       : null;
+    const channelType = channelRow?.channel_type ?? null;
 
     const { data: message } = await admin
       .from("messages")
@@ -54,9 +53,16 @@ async function executeAction(
         throw new Error("Contact has no WhatsApp number");
       }
       try {
-        const client = createTwilioClient();
+        const { data: secret } = await admin
+          .from("channel_secrets")
+          .select("account_sid, auth_token")
+          .eq("channel_connection_id", conversation.channel_connection_id!)
+          .maybeSingle();
+        if (!secret) throw new Error("This organization hasn't connected a WhatsApp number yet");
+
+        const client = createTwilioClient(secret.account_sid, secret.auth_token);
         const twilioMessage = await client.messages.create({
-          from: serverEnv.TWILIO_WHATSAPP_FROM!,
+          from: channelRow!.external_id!,
           to: identity.external_id,
           body: action.body,
           statusCallback: `${publicEnv.NEXT_PUBLIC_APP_URL}/api/webhooks/twilio/status`,

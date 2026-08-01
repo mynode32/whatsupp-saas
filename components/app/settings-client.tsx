@@ -10,7 +10,7 @@ import { Input, Label } from "@/components/ui/input";
 import { Icon } from "@/components/ui/icon";
 import { useLang } from "@/components/i18n/language-provider";
 import { updateOrganizationBrandAction, deleteOrganizationAction } from "@/lib/actions/organizations";
-import { connectTwilioAction, createWebChannelAction } from "@/lib/actions/channels";
+import { connectTwilioAction, disconnectChannelAction, createWebChannelAction } from "@/lib/actions/channels";
 import { createSavedReplyAction, deleteSavedReplyAction } from "@/lib/actions/saved-replies";
 import {
   inviteMemberAction,
@@ -290,9 +290,11 @@ function OrganizationCard({ organization, isAdmin }: { organization: Organizatio
 
 function ChannelsCard({ organizationId, channels }: { organizationId: string; channels: ChannelConnection[] }) {
   const { ui, lang } = useLang();
-  const [state, formAction, pending] = useActionState(connectTwilioAction, initialState);
+  const [connectState, connectAction, connectPending] = useActionState(connectTwilioAction, initialState);
+  const [disconnectState, disconnectAction, disconnectPending] = useActionState(disconnectChannelAction, initialState);
   const whatsapp = channels.find((c) => c.channel_type === "whatsapp");
   const instagram = channels.find((c) => c.channel_type === "instagram");
+  const whatsappConnected = whatsapp?.status === "connected";
 
   return (
     <Card>
@@ -301,29 +303,70 @@ function ChannelsCard({ organizationId, channels }: { organizationId: string; ch
         <p className="text-sm text-muted-foreground">{ui.channelsHint}</p>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center gap-4 rounded-lg border border-border p-4">
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-muted text-muted-foreground">
-            <Icon name="message-circle" className="h-5 w-5" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="font-medium">WhatsApp (Twilio)</p>
-            <p className="truncate text-sm text-muted-foreground">
-              {whatsapp?.external_id ?? ui.notConnected}
-              {whatsapp?.last_error ? ` · ${whatsapp.last_error}` : ""}
-            </p>
+        <div className="space-y-3 rounded-lg border border-border p-4">
+          <div className="flex items-center gap-4">
+            <span className="grid h-10 w-10 place-items-center rounded-lg bg-muted text-muted-foreground">
+              <Icon name="message-circle" className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">WhatsApp (Twilio)</p>
+              <p className="truncate text-sm text-muted-foreground">
+                {whatsapp?.external_id ?? ui.notConnected}
+                {whatsapp?.last_error ? ` · ${whatsapp.last_error}` : ""}
+              </p>
+            </div>
+            {whatsappConnected ? (
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-success">
+                <CheckCircle2 className="h-4 w-4" /> {ui.connected}
+              </span>
+            ) : whatsapp?.status === "error" ? (
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-destructive">
+                <CircleDashed className="h-4 w-4" /> {ui.connectionError}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+                <CircleDashed className="h-4 w-4" /> {ui.notConnected}
+              </span>
+            )}
           </div>
-          {whatsapp?.status === "connected" ? (
-            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-success">
-              <CheckCircle2 className="h-4 w-4" /> {ui.connected}
-            </span>
-          ) : whatsapp?.status === "error" ? (
-            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-destructive">
-              <CircleDashed className="h-4 w-4" /> {ui.connectionError}
-            </span>
+
+          {whatsappConnected ? (
+            <form action={disconnectAction} className="flex items-center gap-3">
+              <input type="hidden" name="organizationId" value={organizationId} />
+              <input type="hidden" name="channelConnectionId" value={whatsapp.id} />
+              <Button type="submit" variant="outline" disabled={disconnectPending} className="gap-2">
+                {disconnectPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {ui.disconnect}
+              </Button>
+              {disconnectState.error && <p className="text-sm text-destructive">{disconnectState.error}</p>}
+            </form>
           ) : (
-            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
-              <CircleDashed className="h-4 w-4" /> {ui.notConnected}
-            </span>
+            <form action={connectAction} className="space-y-3">
+              <input type="hidden" name="organizationId" value={organizationId} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="accountSid">{ui.whatsappAccountSid}</Label>
+                  <Input id="accountSid" name="accountSid" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" required />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="authToken">{ui.whatsappAuthToken}</Label>
+                  <Input id="authToken" name="authToken" type="password" required />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="whatsappFrom">{ui.whatsappFromNumber}</Label>
+                <Input id="whatsappFrom" name="whatsappFrom" placeholder="whatsapp:+14155238886" required />
+                <p className="text-xs text-muted-foreground">{ui.whatsappFromNumberHint}</p>
+              </div>
+              <p className="text-xs text-muted-foreground">{ui.whatsappSecretsHint}</p>
+              <div className="flex items-center gap-3">
+                <Button type="submit" variant="outline" disabled={connectPending} className="gap-2">
+                  {connectPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {ui.connectWhatsapp}
+                </Button>
+                {connectState.error && <p className="text-sm text-destructive">{connectState.error}</p>}
+              </div>
+            </form>
           )}
         </div>
 
@@ -341,15 +384,6 @@ function ChannelsCard({ organizationId, channels }: { organizationId: string; ch
             {instagram?.status === "connected" ? ui.connected : (lang === "tr" ? "Yakında" : "Coming soon")}
           </span>
         </div>
-
-        <form action={formAction} className="flex items-center gap-3">
-          <input type="hidden" name="organizationId" value={organizationId} />
-          <Button type="submit" variant="outline" disabled={pending} className="gap-2">
-            {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-            {ui.testConnection}
-          </Button>
-          {state.error && <p className="text-sm text-destructive">{state.error}</p>}
-        </form>
       </CardContent>
     </Card>
   );

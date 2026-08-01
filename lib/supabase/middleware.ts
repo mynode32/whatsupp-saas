@@ -12,9 +12,22 @@ const APP_ROUTES = ["/dashboard", "/conversations", "/automations", "/knowledge"
  */
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
+  const { pathname } = request.nextUrl;
+  const isAppRoute = APP_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
+  const isAuthPage = pathname === "/login" || pathname === "/signup";
+  const isOnboarding = pathname === "/onboarding";
+
+  // Public marketing pages, provider webhooks and the embeddable widget do
+  // not need a Supabase auth round trip in the proxy.
+  if (!isAppRoute && !isAuthPage && !isOnboarding) return response;
 
   if (!publicEnv.NEXT_PUBLIC_SUPABASE_URL || !publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    // Supabase not configured yet — nothing to enforce (demo mode).
+    if (isAppRoute || isOnboarding) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("error", "service_not_configured");
+      return NextResponse.redirect(url);
+    }
     return response;
   }
 
@@ -38,11 +51,6 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const { pathname } = request.nextUrl;
-  const isAppRoute = APP_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
-  const isAuthPage = pathname === "/login" || pathname === "/signup";
-  const isOnboarding = pathname === "/onboarding";
 
   if (!user && (isAppRoute || isOnboarding)) {
     const url = request.nextUrl.clone();

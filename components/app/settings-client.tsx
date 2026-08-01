@@ -38,6 +38,7 @@ export function SettingsClient({
   savedReplies,
   currentUserId,
   currentUserRole,
+  appUrl,
 }: {
   connected: Record<string, boolean>;
   organization: Organization | null;
@@ -47,9 +48,11 @@ export function SettingsClient({
   savedReplies: SavedReply[];
   currentUserId: string;
   currentUserRole: OrgRole;
+  appUrl: string;
 }) {
-  const { t, ui } = useLang();
+  const { t, ui, lang } = useLang();
   const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
+  const webChannel = channels.find((channel) => channel.channel_type === "web" && channel.status === "connected");
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -83,8 +86,32 @@ export function SettingsClient({
       {/* Channels */}
       {organization && isAdmin && (
         <>
+          <Card className="border-primary/30 bg-primary/[0.03]">
+            <CardHeader>
+              <CardTitle>{lang === "tr" ? "Chatbotunu yayına al" : "Launch your chatbot"}</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {lang === "tr"
+                  ? "İşletme hesabın hazır. Aşağıdaki adımları tamamladığında ziyaretçilerinden mesaj almaya başlayacaksın."
+                  : "Your business account is ready. Complete these steps to start receiving visitor messages."}
+              </p>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-3">
+              {[
+                [true, lang === "tr" ? "İşletme oluşturuldu" : "Business created"],
+                [Boolean(webChannel), lang === "tr" ? "Web chatbot yapılandırıldı" : "Web chatbot configured"],
+                [Boolean(webChannel?.last_event_at), lang === "tr" ? "Kodu sitene ekle ve test et" : "Install the code and test it"],
+              ].map(([done, label], index) => (
+                <div key={String(label)} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
+                  <span className={done ? "text-success" : "text-muted-foreground"}>
+                    {done ? <CheckCircle2 className="h-5 w-5" /> : <span className="grid h-5 w-5 place-items-center rounded-full border text-[10px]">{index + 1}</span>}
+                  </span>
+                  <span className="text-sm font-medium">{label}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
           <ChannelsCard organizationId={organization.id} channels={channels} />
-          <WebChatCard organizationId={organization.id} channels={channels} />
+          <WebChatCard organizationId={organization.id} channels={channels} appUrl={appUrl} />
         </>
       )}
 
@@ -262,9 +289,10 @@ function OrganizationCard({ organization, isAdmin }: { organization: Organizatio
 }
 
 function ChannelsCard({ organizationId, channels }: { organizationId: string; channels: ChannelConnection[] }) {
-  const { ui } = useLang();
+  const { ui, lang } = useLang();
   const [state, formAction, pending] = useActionState(connectTwilioAction, initialState);
   const whatsapp = channels.find((c) => c.channel_type === "whatsapp");
+  const instagram = channels.find((c) => c.channel_type === "instagram");
 
   return (
     <Card>
@@ -299,6 +327,21 @@ function ChannelsCard({ organizationId, channels }: { organizationId: string; ch
           )}
         </div>
 
+        <div className="flex items-center gap-4 rounded-lg border border-border p-4">
+          <span className="grid h-10 w-10 place-items-center rounded-lg bg-muted text-muted-foreground">
+            <Icon name="message-circle" className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">Instagram Direct (Meta)</p>
+            <p className="text-sm text-muted-foreground">
+              {instagram?.external_id ?? (lang === "tr" ? "Meta uygulama onayı ve OAuth bağlantısı bekleniyor" : "Waiting for Meta app approval and OAuth connection")}
+            </p>
+          </div>
+          <span className={instagram?.status === "connected" ? "text-sm font-medium text-success" : "text-sm font-medium text-muted-foreground"}>
+            {instagram?.status === "connected" ? ui.connected : (lang === "tr" ? "Yakında" : "Coming soon")}
+          </span>
+        </div>
+
         <form action={formAction} className="flex items-center gap-3">
           <input type="hidden" name="organizationId" value={organizationId} />
           <Button type="submit" variant="outline" disabled={pending} className="gap-2">
@@ -312,14 +355,14 @@ function ChannelsCard({ organizationId, channels }: { organizationId: string; ch
   );
 }
 
-function WebChatCard({ organizationId, channels }: { organizationId: string; channels: ChannelConnection[] }) {
+function WebChatCard({ organizationId, channels, appUrl }: { organizationId: string; channels: ChannelConnection[]; appUrl: string }) {
   const { ui } = useLang();
   const [state, formAction, pending] = useActionState(createWebChannelAction, initialState);
   const web = channels.find((c) => c.channel_type === "web");
   const widgetConfig = web && "welcomeMessage" in web.credentials ? web.credentials : null;
 
   const embedCode = web
-    ? `<script src="${typeof window !== "undefined" ? window.location.origin : ""}/widget.js" data-widget-key="${web.external_id}" async></script>`
+    ? `<script src="${appUrl}/widget.js" data-widget-key="${web.external_id}" async></script>`
     : null;
 
   return (

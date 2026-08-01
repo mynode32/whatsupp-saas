@@ -300,6 +300,7 @@ export interface Database {
         Row: {
           id: string;
           organization_id: string | null;
+          contact_id: string | null;
           provider: string;
           external_event_id: string;
           payload: Record<string, unknown>;
@@ -311,6 +312,7 @@ export interface Database {
         Insert: {
           id?: string;
           organization_id?: string | null;
+          contact_id?: string | null;
           provider: string;
           external_event_id: string;
           payload: Record<string, unknown>;
@@ -535,9 +537,41 @@ export interface Database {
         Update: Partial<Omit<Database["public"]["Tables"]["automation_actions"]["Insert"], "organization_id" | "run_id">>;
         Relationships: [];
       };
+      rate_limit_buckets: {
+        Row: { bucket_key: string; request_count: number; reset_at: string };
+        Insert: { bucket_key: string; request_count: number; reset_at: string };
+        Update: Partial<Database["public"]["Tables"]["rate_limit_buckets"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      consume_rate_limit: {
+        Args: { input_key: string; max_requests: number; window_seconds: number };
+        Returns: boolean;
+      };
+      record_inbound_activity: {
+        Args: { target_conversation_id: string };
+        Returns: undefined;
+      };
+      create_organization_with_chatbot: {
+        Args: {
+          input_name: string;
+          input_slug: string;
+          input_industry: string | null;
+          input_default_lang: string;
+          input_timezone: string;
+          input_support_email: string | null;
+          input_brand_voice: string | null;
+          input_open_time: string | null;
+          input_close_time: string | null;
+          input_allowed_origin: string;
+          input_welcome_message: string;
+          input_widget_key: string;
+        };
+        Returns: string;
+      };
+    };
     Enums: { org_role: OrgRole };
     CompositeTypes: Record<string, never>;
   };

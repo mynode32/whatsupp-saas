@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createTwilioClient } from "@/lib/twilio/client";
 import { serverEnv } from "@/lib/env.server";
 import { publicEnv } from "@/lib/env";
-import { isRateLimited } from "@/lib/rate-limit";
+import { isRateLimitedShared } from "@/lib/rate-limit.server";
 import type { AuthActionState } from "@/lib/actions/auth";
 
 const sendSchema = z.object({
@@ -30,24 +30,25 @@ export async function sendMessageAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not signed in" };
 
-  if (isRateLimited(`send:${user.id}`, 30)) {
+  if (await isRateLimitedShared(`send:${user.id}`, 30)) {
     return { error: "Sending too fast — slow down a bit." };
   }
 
   const { data: conversation, error: convError } = await supabase
     .from("conversations")
-    .select("id, organization_id, contact_id")
+    .select("id, organization_id, contact_id, channel_connection_id, first_response_at")
     .eq("id", parsed.data.conversationId)
     .single();
   if (convError || !conversation) return { error: "Conversation not found" };
 
-  const { data: identity } = await supabase
-    .from("contact_identities")
-    .select("external_id")
-    .eq("contact_id", conversation.contact_id)
-    .eq("channel", "whatsapp")
-    .maybeSingle();
-  if (!identity) return { error: "This contact has no WhatsApp number on file" };
+  const { data: channel } = conversation.channel_connection_id
+    ? await supabase
+        .from("channel_connections")
+        .select("channel_type")
+        .eq("id", conversation.channel_connection_id)
+        .maybeSingle()
+    : { data: null };
+  if (!channel) return { error: "This conversation has no active channel" };
 
   const { data: message, error: insertError } = await supabase
     .from("messages")
@@ -65,33 +66,56 @@ export async function sendMessageAction(
   if (insertError || !message) return { error: insertError?.message ?? "Could not save message" };
 
   try {
-    const client = createTwilioClient();
-    const twilioMessage = await client.messages.create({
-      from: serverEnv.TWILIO_WHATSAPP_FROM!,
-      to: identity.external_id,
-      body: parsed.data.body,
-      statusCallback: `${publicEnv.NEXT_PUBLIC_APP_URL}/api/webhooks/twilio/status`,
-    });
+    if (channel.channel_type === "whatsapp") {
+      const { data: identity } = await supabase
+        .from("contact_identities")
+        .select("external_id")
+        .eq("organization_id", conversation.organization_id)
+        .eq("contact_id", conversation.contact_id)
+        .eq("channel", "whatsapp")
+        .maybeSingle();
+      if (!identity) throw new Error("This contact has no WhatsApp number on file");
 
-    await supabase
-      .from("messages")
-      .update({ provider_message_id: twilioMessage.sid, status: "sent", sent_at: new Date().toISOString() })
-      .eq("id", message.id);
+      const client = createTwilioClient();
+      const twilioMessage = await client.messages.create({
+        from: serverEnv.TWILIO_WHATSAPP_FROM!,
+        to: identity.external_id,
+        body: parsed.data.body,
+        statusCallback: `${publicEnv.NEXT_PUBLIC_APP_URL}/api/webhooks/twilio/status`,
+      });
+
+      await supabase
+        .from("messages")
+        .update({ provider_message_id: twilioMessage.sid, status: "sent", sent_at: new Date().toISOString() })
+        .eq("id", message.id);
+    } else if (channel.channel_type === "web") {
+      await supabase
+        .from("messages")
+        .update({ status: "sent", sent_at: new Date().toISOString() })
+        .eq("id", message.id);
+    } else {
+      throw new Error(`Sending through ${channel.channel_type} is not available yet`);
+    }
   } catch (err) {
     await supabase
       .from("messages")
       .update({
         status: "failed",
         failed_at: new Date().toISOString(),
-        error_reason: err instanceof Error ? err.message : "Twilio send failed",
+        error_reason: err instanceof Error ? err.message : "Channel send failed",
       })
       .eq("id", message.id);
+    revalidatePath("/conversations");
     return { error: err instanceof Error ? err.message : "Failed to send message" };
   }
 
+  const now = new Date().toISOString();
   await supabase
     .from("conversations")
-    .update({ last_message_at: new Date().toISOString() })
+    .update({
+      last_message_at: now,
+      first_response_at: conversation.first_response_at ?? now,
+    })
     .eq("id", conversation.id);
 
   revalidatePath(`/conversations`);

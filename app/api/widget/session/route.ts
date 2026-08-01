@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveWidgetChannel, corsHeaders } from "@/lib/widget/auth";
-import { isRateLimited } from "@/lib/rate-limit";
+import { isRateLimitedShared } from "@/lib/rate-limit.server";
 
-const bodySchema = z.object({ widgetKey: z.string().min(1), visitorId: z.string().min(1) });
+const bodySchema = z.object({ widgetKey: z.uuid(), visitorId: z.uuid() });
 
 export async function OPTIONS(request: Request) {
   return new NextResponse(null, { status: 204, headers: corsHeaders(request.headers.get("origin")) });
@@ -17,8 +17,8 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400, headers });
 
-  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-  if (isRateLimited(`session:${ip}`)) return NextResponse.json({ error: "Too many requests" }, { status: 429, headers });
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (await isRateLimitedShared(`session:${ip}`)) return NextResponse.json({ error: "Too many requests" }, { status: 429, headers });
 
   const channel = await resolveWidgetChannel(parsed.data.widgetKey, origin);
   if (!channel) return NextResponse.json({ error: "Invalid widget key or origin" }, { status: 403, headers });
@@ -42,13 +42,29 @@ export async function POST(request: Request) {
       .single();
     if (error || !newContact) return NextResponse.json({ error: "Could not start session" }, { status: 500, headers });
     contactId = newContact.id;
-    await admin.from("contact_identities").insert({
+    const { error: identityError } = await admin.from("contact_identities").insert({
       organization_id: channel.organization_id,
       contact_id: contactId,
       channel: "web",
       external_id: parsed.data.visitorId,
     });
+    if (identityError?.code === "23505") {
+      const { data: winner } = await admin
+        .from("contact_identities")
+        .select("contact_id")
+        .eq("organization_id", channel.organization_id)
+        .eq("channel", "web")
+        .eq("external_id", parsed.data.visitorId)
+        .single();
+      await admin.from("contacts").delete().eq("id", contactId);
+      contactId = winner?.contact_id;
+    } else if (identityError) {
+      await admin.from("contacts").delete().eq("id", contactId);
+      return NextResponse.json({ error: "Could not start session" }, { status: 500, headers });
+    }
   }
+
+  if (!contactId) return NextResponse.json({ error: "Could not start session" }, { status: 500, headers });
 
   const { data: existingConversation } = await admin
     .from("conversations")
@@ -77,6 +93,11 @@ export async function POST(request: Request) {
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true })
     .limit(50);
+
+  await admin
+    .from("channel_connections")
+    .update({ last_event_at: new Date().toISOString() })
+    .eq("id", channel.id);
 
   return NextResponse.json(
     {

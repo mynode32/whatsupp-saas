@@ -36,11 +36,9 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Excludes /api/widget/* and /widget.js: those are meant to be
-        // embedded/called cross-origin by design (CORS handled in the
-        // widget routes themselves) — frame-ancestors 'none' and a
-        // strict CSP there would work against that.
-        source: "/((?!api/widget|widget.js).*)",
+        // Apply baseline protections to app pages and widget resources.
+        // Widget API cross-origin access is still controlled by CORS.
+        source: "/:path*",
         headers: securityHeaders,
       },
     ];

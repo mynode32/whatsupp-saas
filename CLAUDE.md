@@ -36,15 +36,15 @@ auth pages.
 
 ## Auth
 
-`/login` and `/signup` are real screens but run a **demo bypass** — Supabase
-isn't connected, so submitting (or "Continue with demo") just enters the
-dashboard. Wiring Supabase via setup is what makes them do real auth.
+`/login` and `/signup` use real Supabase Auth. The optional "Continue with
+demo" button opens the interactive landing-page demo; it never bypasses auth
+or enters the real dashboard.
 
 ## Demo mode
 
-With no keys in `.env.local`, the app renders from `lib/demo/data.ts`. That is
-intentional — it lets anyone boot the app instantly. Real integrations replace
-the demo data once their keys are present.
+With no keys in `.env.local`, the marketing site and its interactive product
+demo still render. The authenticated dashboard requires Supabase configuration;
+there is deliberately no production auth bypass.
 
 <!-- BEGIN:nextjs-agent-rules -->
 ## This is NOT the Next.js you may know

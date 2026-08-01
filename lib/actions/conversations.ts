@@ -28,6 +28,16 @@ export async function updateConversationStatusAction(formData: FormData): Promis
   revalidatePath("/conversations");
 }
 
+const readSchema = z.object({ conversationId: z.uuid() });
+
+export async function markConversationReadAction(conversationId: string): Promise<void> {
+  const parsed = readSchema.safeParse({ conversationId });
+  if (!parsed.success) return;
+
+  const supabase = await createClient();
+  await supabase.from("conversations").update({ unread_count: 0 }).eq("id", parsed.data.conversationId);
+}
+
 const assignSchema = z.object({ conversationId: z.uuid(), assigneeId: z.uuid() });
 
 export async function assignConversationAction(formData: FormData): Promise<void> {
@@ -42,6 +52,21 @@ export async function assignConversationAction(formData: FormData): Promise<void
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return;
+
+  const { data: existing } = await supabase
+    .from("conversations")
+    .select("organization_id")
+    .eq("id", parsed.data.conversationId)
+    .maybeSingle();
+  if (!existing) return;
+
+  const { data: assigneeMembership } = await supabase
+    .from("organization_members")
+    .select("id")
+    .eq("organization_id", existing.organization_id)
+    .eq("user_id", parsed.data.assigneeId)
+    .maybeSingle();
+  if (!assigneeMembership) return;
 
   const { data: conversation } = await supabase
     .from("conversations")

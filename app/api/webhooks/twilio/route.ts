@@ -8,9 +8,8 @@ import { runAutomationsForMessage } from "@/lib/automations/engine";
 /**
  * Twilio WhatsApp inbound message webhook.
  *
- * Always responds 2xx once the signature check passes, even on
- * downstream errors, so Twilio doesn't retry-storm us — errors are
- * logged to webhook_events.status='failed' for follow-up instead.
+ * Acknowledges only successfully processed events. Downstream failures
+ * return 500 so Twilio can retry; failed duplicates re-enter processing.
  */
 export async function POST(request: Request) {
   const rawBody = await request.text();
@@ -47,8 +46,22 @@ export async function POST(request: Request) {
   });
   if (logError) {
     // Duplicate delivery of a webhook we already logged — already handled, ack and stop.
-    if (logError.code === "23505") return new NextResponse(null, { status: 200 });
-    return NextResponse.json({ error: "Failed to log webhook" }, { status: 500 });
+    if (logError.code === "23505") {
+      const { data: existing } = await admin
+        .from("webhook_events")
+        .select("status")
+        .eq("provider", "twilio")
+        .eq("external_event_id", messageSid)
+        .maybeSingle();
+      if (existing?.status !== "failed") return new NextResponse(null, { status: 200 });
+      await admin
+        .from("webhook_events")
+        .update({ status: "processing", error_message: null })
+        .eq("provider", "twilio")
+        .eq("external_event_id", messageSid);
+    } else {
+      return NextResponse.json({ error: "Failed to log webhook" }, { status: 500 });
+    }
   }
 
   try {
@@ -63,7 +76,6 @@ export async function POST(request: Request) {
       .eq("provider", "twilio")
       .eq("status", "connected")
       .eq("external_id", to)
-      .limit(1)
       .maybeSingle();
 
     if (!channel) throw new Error(`No connected WhatsApp channel for ${to}`);
@@ -88,17 +100,32 @@ export async function POST(request: Request) {
       if (contactError) throw contactError;
       contactId = newContact.id;
 
-      await admin.from("contact_identities").insert({
+      const { error: identityError } = await admin.from("contact_identities").insert({
         organization_id: organizationId,
         contact_id: contactId,
         channel: "whatsapp",
         external_id: from,
       });
+      if (identityError?.code === "23505") {
+        const { data: winner } = await admin
+          .from("contact_identities")
+          .select("contact_id")
+          .eq("organization_id", organizationId)
+          .eq("channel", "whatsapp")
+          .eq("external_id", from)
+          .single();
+        await admin.from("contacts").delete().eq("id", contactId);
+        contactId = winner?.contact_id;
+      } else if (identityError) {
+        throw identityError;
+      }
     }
+
+    if (!contactId) throw new Error("Could not resolve contact");
 
     const { data: openConversation } = await admin
       .from("conversations")
-      .select("id, unread_count")
+      .select("id")
       .eq("organization_id", organizationId)
       .eq("contact_id", contactId)
       .neq("status", "resolved")
@@ -139,13 +166,7 @@ export async function POST(request: Request) {
       await runAutomationsForMessage(admin, { organizationId, conversationId, messageId: messageSid, messageBody: body });
     }
 
-    await admin
-      .from("conversations")
-      .update({
-        last_message_at: new Date().toISOString(),
-        unread_count: (openConversation?.unread_count ?? 0) + 1,
-      })
-      .eq("id", conversationId);
+    await admin.rpc("record_inbound_activity", { target_conversation_id: conversationId });
 
     await admin
       .from("channel_connections")
@@ -154,7 +175,7 @@ export async function POST(request: Request) {
 
     await admin
       .from("webhook_events")
-      .update({ status: "processed", processed_at: new Date().toISOString(), organization_id: organizationId })
+      .update({ status: "processed", processed_at: new Date().toISOString(), organization_id: organizationId, contact_id: contactId, error_message: null })
       .eq("provider", "twilio")
       .eq("external_event_id", messageSid);
   } catch (err) {
@@ -163,6 +184,7 @@ export async function POST(request: Request) {
       .update({ status: "failed", error_message: err instanceof Error ? err.message : "Unknown error" })
       .eq("provider", "twilio")
       .eq("external_event_id", messageSid);
+    return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 });
   }
 
   // Always 2xx once signature-verified: failures are tracked in

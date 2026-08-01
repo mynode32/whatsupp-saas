@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/server";
 import type { AuthActionState } from "@/lib/actions/auth";
 
 const addNoteSchema = z.object({
-  organizationId: z.uuid(),
   conversationId: z.uuid(),
   body: z.string().min(1, "Note can't be empty"),
 });
@@ -16,7 +15,6 @@ export async function addConversationNoteAction(
   formData: FormData,
 ): Promise<AuthActionState> {
   const parsed = addNoteSchema.safeParse({
-    organizationId: formData.get("organizationId"),
     conversationId: formData.get("conversationId"),
     body: formData.get("body"),
   });
@@ -28,8 +26,15 @@ export async function addConversationNoteAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not signed in" };
 
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("organization_id")
+    .eq("id", parsed.data.conversationId)
+    .maybeSingle();
+  if (!conversation) return { error: "Conversation not found" };
+
   const { error } = await supabase.from("conversation_notes").insert({
-    organization_id: parsed.data.organizationId,
+    organization_id: conversation.organization_id,
     conversation_id: parsed.data.conversationId,
     author_id: user.id,
     body: parsed.data.body,

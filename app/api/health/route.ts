@@ -5,7 +5,11 @@ import { publicEnv } from "@/lib/env";
 /** Readiness check: confirms the app can actually reach its database, not just that the process is up. */
 export async function GET() {
   if (!publicEnv.NEXT_PUBLIC_SUPABASE_URL) {
-    return NextResponse.json({ status: "ok", database: "not_configured" });
+    const production = process.env.NODE_ENV === "production";
+    return NextResponse.json(
+      { status: production ? "error" : "ok", database: "not_configured" },
+      { status: production ? 503 : 200 },
+    );
   }
 
   try {
@@ -13,9 +17,9 @@ export async function GET() {
     const { error } = await admin.from("organizations").select("id", { count: "exact", head: true });
     if (error) throw error;
     return NextResponse.json({ status: "ok", database: "reachable" });
-  } catch (err) {
+  } catch {
     return NextResponse.json(
-      { status: "error", database: "unreachable", message: err instanceof Error ? err.message : "Unknown error" },
+      { status: "error", database: "unreachable" },
       { status: 503 },
     );
   }

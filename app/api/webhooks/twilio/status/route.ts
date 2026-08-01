@@ -7,7 +7,9 @@ import type { Database } from "@/lib/supabase/types";
 
 type MessageUpdate = Database["public"]["Tables"]["messages"]["Update"];
 
-const STATUS_MAP: Record<string, { status: MessageUpdate["status"]; timestampField: "sent_at" | "delivered_at" | "read_at" | "failed_at" | null }> = {
+type DeliveryStatus = "sent" | "delivered" | "read" | "failed";
+
+const STATUS_MAP: Record<string, { status: DeliveryStatus; timestampField: "sent_at" | "delivered_at" | "read_at" | "failed_at" | null }> = {
   sent: { status: "sent", timestampField: "sent_at" },
   delivered: { status: "delivered", timestampField: "delivered_at" },
   read: { status: "read", timestampField: "read_at" },
@@ -35,12 +37,24 @@ export async function POST(request: Request) {
 
   if (mapped) {
     const admin = createAdminClient();
+    const { data: existing } = await admin
+      .from("messages")
+      .select("id, status")
+      .eq("provider_message_id", messageSid)
+      .maybeSingle();
+    if (!existing) return new NextResponse(null, { status: 200 });
+
+    const rank = { queued: 0, sent: 1, delivered: 2, read: 3, failed: 4 } as const;
+    if (mapped.status !== "failed" && rank[mapped.status] < rank[existing.status]) {
+      return new NextResponse(null, { status: 200 });
+    }
+
     const update: MessageUpdate = { status: mapped.status };
     if (mapped.timestampField) update[mapped.timestampField] = new Date().toISOString();
     if (params.MessageStatus === "failed" || params.MessageStatus === "undelivered") {
       update.error_reason = params.ErrorMessage || `Twilio error ${params.ErrorCode ?? ""}`.trim();
     }
-    await admin.from("messages").update(update).eq("provider_message_id", messageSid);
+    await admin.from("messages").update(update).eq("id", existing.id);
   }
 
   return new NextResponse(null, { status: 200 });

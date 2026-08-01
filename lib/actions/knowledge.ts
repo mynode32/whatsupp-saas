@@ -10,12 +10,14 @@ import type { AuthActionState } from "@/lib/actions/auth";
 import type { Database } from "@/lib/supabase/types";
 
 async function resyncChunks(supabase: SupabaseClient<Database>, documentId: string, organizationId: string, content: string) {
-  await supabase.from("knowledge_chunks").delete().eq("document_id", documentId);
+  const { error: deleteError } = await supabase.from("knowledge_chunks").delete().eq("document_id", documentId);
+  if (deleteError) throw new Error(`Could not clear search index: ${deleteError.message}`);
   const pieces = chunkContent(content);
   if (pieces.length === 0) return;
-  await supabase.from("knowledge_chunks").insert(
+  const { error: insertError } = await supabase.from("knowledge_chunks").insert(
     pieces.map((content, chunk_index) => ({ organization_id: organizationId, document_id: documentId, chunk_index, content })),
   );
+  if (insertError) throw new Error(`Could not update search index: ${insertError.message}`);
 }
 
 const articleSchema = z.object({
@@ -84,7 +86,7 @@ export async function updateArticleAction(
 
   const { data: existing, error: fetchError } = await supabase
     .from("knowledge_documents")
-    .select("status")
+    .select("status, organization_id")
     .eq("id", parsed.data.id)
     .single();
   if (fetchError || !existing) return { error: "Article not found" };
@@ -96,7 +98,12 @@ export async function updateArticleAction(
   if (error) return { error: error.message };
 
   if (existing.status === "published") {
-    await resyncChunks(supabase, parsed.data.id, parsed.data.organizationId, parsed.data.content);
+    try {
+      await resyncChunks(supabase, parsed.data.id, existing.organization_id, parsed.data.content);
+    } catch (err) {
+      await supabase.from("knowledge_documents").update({ status: "draft" }).eq("id", parsed.data.id);
+      return { error: err instanceof Error ? err.message : "Could not update search index" };
+    }
   }
 
   revalidatePath("/knowledge");
@@ -126,15 +133,21 @@ export async function setArticleStatusAction(
     .from("knowledge_documents")
     .update({ status: parsed.data.status })
     .eq("id", parsed.data.id)
-    .select("content")
+    .select("content, organization_id")
     .single();
   if (error || !doc) return { error: error?.message ?? "Could not update status" };
 
   if (parsed.data.status === "published") {
-    await resyncChunks(supabase, parsed.data.id, parsed.data.organizationId, doc.content);
+    try {
+      await resyncChunks(supabase, parsed.data.id, doc.organization_id, doc.content);
+    } catch (err) {
+      await supabase.from("knowledge_documents").update({ status: "draft" }).eq("id", parsed.data.id);
+      return { error: err instanceof Error ? err.message : "Could not update search index" };
+    }
   } else {
     // Draft/archived articles must not be retrievable — clear their chunks.
-    await supabase.from("knowledge_chunks").delete().eq("document_id", parsed.data.id);
+    const { error: chunkError } = await supabase.from("knowledge_chunks").delete().eq("document_id", parsed.data.id);
+    if (chunkError) return { error: chunkError.message };
   }
 
   revalidatePath("/knowledge");

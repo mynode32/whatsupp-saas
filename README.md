@@ -1,9 +1,9 @@
 # mynode
 
-**Reply to every customer on WhatsApp in seconds.** mynode unifies WhatsApp,
-Instagram and web-chat messages into one inbox, drafts a knowledge-grounded
-AI reply for every message in your brand voice, and lets automations close
-the routine ones.
+**Launch a website chatbot and manage customer messages in one inbox.** mynode
+supports self-service web-chat setup and WhatsApp messaging today. Instagram
+inbound webhook support is implemented; customer OAuth and outbound replies
+activate after the Meta app is approved. AI reply drafting remains a beta phase.
 
 ## Quick start
 

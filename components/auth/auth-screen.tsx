@@ -32,7 +32,7 @@ export function AuthScreen({
   );
 
   function enterDemo() {
-    setTimeout(() => router.push("/dashboard"), 450);
+    setTimeout(() => router.push("/#demo"), 250);
   }
 
   const checkEmail = state.success && state.message === "check-email";

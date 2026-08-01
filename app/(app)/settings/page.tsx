@@ -1,16 +1,14 @@
-import appConfig from "@/app.config";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganization } from "@/lib/db/organizations";
 import { listTeamMembers } from "@/lib/db/team";
 import { listPendingInvitations } from "@/lib/db/invitations";
 import { listSavedReplies } from "@/lib/db/saved-replies";
 import { SettingsClient } from "@/components/app/settings-client";
+import { publicEnv } from "@/lib/env";
+import { integrationStatus } from "@/lib/env.server";
 
 export default async function SettingsPage() {
-  const connected: Record<string, boolean> = {};
-  for (const it of appConfig.integrations) {
-    connected[it.key] = it.envVars.every((v) => !!process.env[v]);
-  }
+  const connected: Record<string, boolean> = { ...integrationStatus };
 
   const supabase = await createClient();
   const {
@@ -48,6 +46,7 @@ export default async function SettingsPage() {
       savedReplies={savedReplies}
       currentUserId={user!.id}
       currentUserRole={membership?.role ?? "viewer"}
+      appUrl={publicEnv.NEXT_PUBLIC_APP_URL}
     />
   );
 }

@@ -1,8 +1,8 @@
 # 👋 Start here / Buradan başla
 
-This folder is a **complete app** — it already runs with realistic demo data and
-needs **zero setup to preview**. When you're ready to make it yours and put it
-online, an AI assistant (Claude Code) walks you through everything.
+The marketing site and interactive preview need **zero setup**. The real
+dashboard, customer accounts and chatbot data require Supabase configuration.
+When you're ready to put it online, follow `SETUP.md` for the required services.
 
 Bu klasör **çalışan bir uygulama** — gerçekçi demo verisiyle birlikte gelir ve
 önizlemek için **hiçbir kurulum gerektirmez**. Kendine ait yapıp internete çıkmaya

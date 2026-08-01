@@ -22,4 +22,8 @@ describe("csvEscape", () => {
   it("handles an empty string", () => {
     expect(csvEscape("")).toBe("");
   });
+
+  it.each(["=1+1", "+cmd", "-2+3", "@SUM(A1:A2)"])("neutralizes spreadsheet formulas: %s", (value) => {
+    expect(csvEscape(value)).toBe(`'${value}`);
+  });
 });

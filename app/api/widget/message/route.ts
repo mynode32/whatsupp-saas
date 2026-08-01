@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveWidgetChannel, corsHeaders } from "@/lib/widget/auth";
-import { isRateLimited } from "@/lib/rate-limit";
+import { isRateLimitedShared } from "@/lib/rate-limit.server";
 import { runAutomationsForMessage } from "@/lib/automations/engine";
 
 const bodySchema = z.object({
-  widgetKey: z.string().min(1),
-  visitorId: z.string().min(1),
+  widgetKey: z.uuid(),
+  visitorId: z.uuid(),
   conversationId: z.uuid(),
   body: z.string().min(1).max(4096),
 });
@@ -23,12 +23,13 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400, headers });
 
-  if (isRateLimited(`message:${parsed.data.visitorId}`)) {
-    return NextResponse.json({ error: "Too many messages, slow down" }, { status: 429, headers });
-  }
-
   const channel = await resolveWidgetChannel(parsed.data.widgetKey, origin);
   if (!channel) return NextResponse.json({ error: "Invalid widget key or origin" }, { status: 403, headers });
+
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (await isRateLimitedShared(`message:${channel.id}:${ip}`, 20)) {
+    return NextResponse.json({ error: "Too many messages, slow down" }, { status: 429, headers });
+  }
 
   const admin = createAdminClient();
 
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
     .maybeSingle();
   const { data: conversation } = await admin
     .from("conversations")
-    .select("id, contact_id, unread_count")
+    .select("id, contact_id")
     .eq("id", parsed.data.conversationId)
     .eq("organization_id", channel.organization_id)
     .maybeSingle();
@@ -66,10 +67,7 @@ export async function POST(request: Request) {
     .single();
   if (error || !message) return NextResponse.json({ error: "Could not send message" }, { status: 500, headers });
 
-  await admin
-    .from("conversations")
-    .update({ last_message_at: new Date().toISOString(), unread_count: (conversation.unread_count ?? 0) + 1 })
-    .eq("id", conversation.id);
+  await admin.rpc("record_inbound_activity", { target_conversation_id: conversation.id });
 
   await runAutomationsForMessage(admin, {
     organizationId: channel.organization_id,

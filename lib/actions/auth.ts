@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { publicEnv } from "@/lib/env";
-import { isRateLimited } from "@/lib/rate-limit";
+import { isRateLimitedShared } from "@/lib/rate-limit.server";
 
 async function clientIp(): Promise<string> {
   const h = await headers();
@@ -39,7 +39,7 @@ export async function signUpAction(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  if (isRateLimited(`signup:${await clientIp()}`, 10)) {
+  if (await isRateLimitedShared(`signup:${await clientIp()}`, 10)) {
     return { error: "Too many attempts. Try again in a minute." };
   }
 
@@ -79,7 +79,7 @@ export async function signInAction(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  if (isRateLimited(`signin:${parsed.data.email.toLowerCase()}`, 10)) {
+  if (await isRateLimitedShared(`signin:${await clientIp()}:${parsed.data.email.toLowerCase()}`, 10)) {
     return { error: "Too many attempts. Try again in a minute." };
   }
 
@@ -106,7 +106,7 @@ export async function requestPasswordResetAction(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  if (isRateLimited(`reset:${parsed.data.email.toLowerCase()}`, 5)) {
+  if (await isRateLimitedShared(`reset:${await clientIp()}:${parsed.data.email.toLowerCase()}`, 5)) {
     return { success: true, message: "check-email" }; // don't reveal rate limiting to a potential attacker either
   }
 

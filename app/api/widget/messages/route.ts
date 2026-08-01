@@ -4,8 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveWidgetChannel, corsHeaders } from "@/lib/widget/auth";
 
 const querySchema = z.object({
-  widgetKey: z.string().min(1),
-  visitorId: z.string().min(1),
+  widgetKey: z.uuid(),
+  visitorId: z.uuid(),
   conversationId: z.uuid(),
   since: z.string().optional(),
 });

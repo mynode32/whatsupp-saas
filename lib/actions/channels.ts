@@ -8,6 +8,7 @@ import { serverEnv } from "@/lib/env.server";
 import { createNotification } from "@/lib/notifications/create";
 import { logAuditEvent } from "@/lib/audit/log";
 import type { AuthActionState } from "@/lib/actions/auth";
+import { normalizeAllowedOrigins } from "@/lib/widget/origins";
 
 const connectSchema = z.object({ organizationId: z.uuid() });
 
@@ -102,9 +103,9 @@ export async function connectTwilioAction(
 
 const webChannelSchema = z.object({
   organizationId: z.uuid(),
-  welcomeMessage: z.string().optional(),
-  color: z.string().optional(),
-  allowedOrigins: z.string().optional(),
+  welcomeMessage: z.string().max(240).optional(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  allowedOrigins: z.string().min(1, "Enter at least one website URL"),
 });
 
 /** Creates (or reconfigures) the org's web chat widget — generates the public widget key on first setup. */
@@ -116,9 +117,16 @@ export async function createWebChannelAction(
     organizationId: formData.get("organizationId"),
     welcomeMessage: formData.get("welcomeMessage") || undefined,
     color: formData.get("color") || undefined,
-    allowedOrigins: formData.get("allowedOrigins") || undefined,
+    allowedOrigins: formData.get("allowedOrigins"),
   });
-  if (!parsed.success) return { error: "Invalid input" };
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  let allowedOrigins: string[];
+  try {
+    allowedOrigins = normalizeAllowedOrigins(parsed.data.allowedOrigins);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Enter valid website URLs" };
+  }
 
   const supabase = await createClient();
   const {
@@ -129,9 +137,7 @@ export async function createWebChannelAction(
   const credentials = {
     welcomeMessage: parsed.data.welcomeMessage ?? "Merhaba! Nasıl yardımcı olabiliriz?",
     color: parsed.data.color ?? "#4f46e5",
-    allowedOrigins: parsed.data.allowedOrigins
-      ? parsed.data.allowedOrigins.split(",").map((o) => o.trim()).filter(Boolean)
-      : [],
+    allowedOrigins,
   };
 
   const { data: existing } = await supabase

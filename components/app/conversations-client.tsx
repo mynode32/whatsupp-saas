@@ -1,12 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useActionState } from "react";
 import { Send, MessageCircle, Loader2, Trash2 } from "lucide-react";
 import { useLang } from "@/components/i18n/language-provider";
 import { sendMessageAction } from "@/lib/actions/messages";
-import { updateConversationStatusAction, assignConversationAction } from "@/lib/actions/conversations";
+import { updateConversationStatusAction, assignConversationAction, markConversationReadAction } from "@/lib/actions/conversations";
 import { addConversationNoteAction } from "@/lib/actions/notes";
 import { deleteContactAction } from "@/lib/actions/contacts";
 import { cn } from "@/lib/utils";
@@ -78,6 +78,11 @@ export function ConversationsClient({
   const [tab, setTab] = useState<"messages" | "notes">("messages");
   const composerRef = useRef<HTMLInputElement>(null);
   const [noteState, noteAction, notePending] = useActionState(addConversationNoteAction, initialState);
+  const [messageState, messageAction, messagePending] = useActionState(sendMessageAction, initialState);
+
+  useEffect(() => {
+    if (activeId) void markConversationReadAction(activeId);
+  }, [activeId]);
 
   const counts = {
     all: conversations.length,
@@ -258,17 +263,16 @@ export function ConversationsClient({
                     </select>
                   )}
                   <form
-                    action={async (formData: FormData) => {
-                      await sendMessageAction({}, formData);
-                    }}
+                    action={messageAction}
                     className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2"
                   >
                     <input type="hidden" name="conversationId" value={selected.id} />
                     <input ref={composerRef} name="body" className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" placeholder={m.placeholder} required />
-                    <button type="submit" aria-label={m.send} className="text-muted-foreground hover:text-primary cursor-pointer">
-                      <Send className="h-4 w-4" />
+                    <button type="submit" disabled={messagePending} aria-label={m.send} className="text-muted-foreground hover:text-primary cursor-pointer disabled:opacity-50">
+                      {messagePending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                     </button>
                   </form>
+                  {messageState.error && <p className="text-xs text-destructive">{messageState.error}</p>}
                 </div>
               </>
             ) : (

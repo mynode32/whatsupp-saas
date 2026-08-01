@@ -12,6 +12,9 @@ const serverSchema = z.object({
   TWILIO_ACCOUNT_SID: z.string().min(1).optional(),
   TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
   TWILIO_WHATSAPP_FROM: z.string().min(1).optional(),
+  META_APP_ID: z.string().min(1).optional(),
+  META_APP_SECRET: z.string().min(1).optional(),
+  META_VERIFY_TOKEN: z.string().min(16).optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
   WEBHOOK_SIGNING_SECRET: z.string().min(1).optional(),
   // Only ever honored outside production (see isDemoModeEnabled below) —
@@ -31,6 +34,9 @@ function parseServerEnv() {
     TWILIO_ACCOUNT_SID: emptyToUndefined(process.env.TWILIO_ACCOUNT_SID),
     TWILIO_AUTH_TOKEN: emptyToUndefined(process.env.TWILIO_AUTH_TOKEN),
     TWILIO_WHATSAPP_FROM: emptyToUndefined(process.env.TWILIO_WHATSAPP_FROM),
+    META_APP_ID: emptyToUndefined(process.env.META_APP_ID),
+    META_APP_SECRET: emptyToUndefined(process.env.META_APP_SECRET),
+    META_VERIFY_TOKEN: emptyToUndefined(process.env.META_VERIFY_TOKEN),
     SUPABASE_SERVICE_ROLE_KEY: emptyToUndefined(process.env.SUPABASE_SERVICE_ROLE_KEY),
     WEBHOOK_SIGNING_SECRET: emptyToUndefined(process.env.WEBHOOK_SIGNING_SECRET),
     DEMO_MODE: emptyToUndefined(process.env.DEMO_MODE),
@@ -48,8 +54,13 @@ export const serverEnv = parseServerEnv();
 
 export const integrationStatus = {
   anthropic: Boolean(serverEnv.ANTHROPIC_API_KEY),
-  twilio: Boolean(serverEnv.TWILIO_ACCOUNT_SID && serverEnv.TWILIO_AUTH_TOKEN),
-  supabase: Boolean(serverEnv.SUPABASE_SERVICE_ROLE_KEY),
+  twilio: Boolean(serverEnv.TWILIO_ACCOUNT_SID && serverEnv.TWILIO_AUTH_TOKEN && serverEnv.TWILIO_WHATSAPP_FROM),
+  meta: Boolean(serverEnv.META_APP_ID && serverEnv.META_APP_SECRET && serverEnv.META_VERIFY_TOKEN),
+  supabase: Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY &&
+    serverEnv.SUPABASE_SERVICE_ROLE_KEY
+  ),
 } as const;
 
 /** The old "skip login" shortcut only ever works outside production, and only when explicitly opted in. */

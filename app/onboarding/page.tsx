@@ -73,6 +73,17 @@ export default function OnboardingPage() {
               </div>
 
               <div className="space-y-1.5">
+                <Label htmlFor="websiteUrl">{ui.websiteUrl}</Label>
+                <Input id="websiteUrl" name="websiteUrl" type="url" placeholder="https://example.com" required />
+                <p className="text-xs text-muted-foreground">{ui.websiteUrlHint}</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="welcomeMessage">{ui.welcomeMessage}</Label>
+                <Input id="welcomeMessage" name="welcomeMessage" defaultValue={ui.defaultWelcomeMessage} maxLength={240} required />
+              </div>
+
+              <div className="space-y-1.5">
                 <Label>{ui.workingHours}</Label>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">

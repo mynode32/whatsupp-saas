@@ -17,7 +17,7 @@ async function executeAction(
   if (action.type === "reply") {
     const { data: conversation } = await admin
       .from("conversations")
-      .select("contact_id, channel_connection_id")
+      .select("contact_id, channel_connection_id, first_response_at")
       .eq("id", ctx.conversationId)
       .single();
     if (!conversation) throw new Error("Conversation not found");
@@ -45,6 +45,7 @@ async function executeAction(
       const { data: identity } = await admin
         .from("contact_identities")
         .select("external_id")
+        .eq("organization_id", ctx.organizationId)
         .eq("contact_id", conversation.contact_id)
         .eq("channel", "whatsapp")
         .maybeSingle();
@@ -82,7 +83,11 @@ async function executeAction(
       await admin.from("messages").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", message.id);
     }
 
-    await admin.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", ctx.conversationId);
+    const now = new Date().toISOString();
+    await admin
+      .from("conversations")
+      .update({ last_message_at: now, first_response_at: conversation.first_response_at ?? now })
+      .eq("id", ctx.conversationId);
   } else if (action.type === "tag") {
     const { data: existingTag } = await admin
       .from("tags")
@@ -178,6 +183,7 @@ export async function runAutomationsForMessage(
         });
       }
       await admin.from("automation_rules").update({ last_run_at: new Date().toISOString() }).eq("id", rule.id);
+      await admin.from("automation_runs").update({ finished_at: new Date().toISOString() }).eq("id", run.id);
     } catch (err) {
       await admin
         .from("automation_runs")

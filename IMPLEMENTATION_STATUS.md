@@ -3,6 +3,46 @@
 Bu belge mynode'un gerçek durumunu belgeler: hangi özellik gerçek, hangisi
 demo verisiyle çalışan bir arayüz kabuğu. Her fazın sonunda güncellenir.
 
+## Faz 13.5 — self-service SaaS hardening (tamamlandı, canlıda doğrulandı)
+
+- `0014_production_hardening.sql`: admin→owner yetki yükseltmesini kapatır,
+  tenant ilişkilerini DB trigger'larıyla doğrular, knowledge chunk yazma/silme
+  politikalarını ekler, dağıtık rate limit ve atomik onboarding RPC'lerini kurar.
+  Codex tarafından yazıldı, ben (Claude) canlı Supabase projesine uygulanmadan
+  önce kod incelemesinden geçirdim ve uygulanmasını yönlendirdim.
+- **Canlı testte kritik bir bug bulundu ve düzeltildi (`0015_fix_tenant_trigger_field_resolution.sql`):**
+  `0014`'ün `validate_tenant_relationships()` fonksiyonu, tg_table_name kontrolünü
+  başka bir tablonun alanına referans veren `EXISTS(...)` ile tek bir `AND`'li
+  koşulda birleştiriyordu. Postgres bu ifadeyi çalıştırmadan önce planlarken
+  alanı, koşulun sol tarafı hangi tabloda tetiklendiğine bakmaksızın çözmeye
+  çalışıyor — bu da `contact_identities`, `conversations` ve `messages`
+  tablolarına yapılan HER insert'i "record new has no field ..." hatasıyla
+  %100 kırıyordu (yalnızca `conversations` dalı doğru, iç içe `IF/END IF` ile
+  yazılmıştı). Yani migration uygulandıktan sonra WhatsApp/Instagram/web-chat
+  üzerinden yeni hiçbir konuşma başlatılamıyordu. `0015` her dalı iç içe
+  `IF/END IF` ile izole ederek düzeltti. Düzeltme sonrası canlı uçtan uca
+  testle doğrulandı: gerçek kullanıcı kaydı → onboarding RPC'si → org/owner/
+  çalışma saatleri/web-chat kanalı otomatik oluştu → widget session/message
+  API'leri üzerinden gerçek mesaj gönderildi ve kaydedildi → ilgisiz başka bir
+  kullanıcı bu organizasyonun verisini göremedi (RLS izolasyonu sağlam). Tüm
+  test verileri temizlendi.
+- Yeni müşteri onboarding sırasında işletme + web sitesi bilgilerini girer;
+  organizasyon, owner üyeliği, çalışma saatleri ve web chatbot tek transaction'da
+  oluşur. Ayarlar'da hazır embed kodu ve canlı kurulum kontrol listesi görünür.
+- Temsilci web-chat konuşmasına doğrudan cevap verebilir. İlk yanıt zamanı ve
+  başarılı otomasyon bitiş zamanı gerçek akışta yazılır; unread sayaç artışı
+  atomiktir ve konuşma açıldığında temizlenir.
+- Twilio webhook hataları artık retry alır; aynı provider kimliği iki aktif
+  tenant'a bağlanamaz. Kişi silindiğinde ilişkili ham webhook payload'ı da silinir.
+- Instagram için Meta imza doğrulamalı webhook ve unified-inbox kayıt akışı
+  eklendi. Müşteri OAuth bağlantısı ve outbound Instagram yanıtı Meta uygulama
+  hesabı/onayı geldikten sonra tamamlanacaktır.
+- Landing page self-service ürünü anlatacak şekilde güncellendi; gerçek olmayan
+  müşteri sayısı kaldırıldı, Instagram/ödeme/AI beta sınırları açıklandı.
+
+**Dağıtım notu:** `0014` ve `0015` migration'ları bağlı Supabase projesine
+uygulandı ve canlı testle doğrulandı — beklenen aksiyon yok.
+
 **Durum tanımları:**
 - `DEMO_ONLY` — sadece statik/mock veri gösterir, gerçek backend çağrısı yok.
 - `PARTIAL` — bir miktar gerçek bağlantı var ama eksik/yarım.

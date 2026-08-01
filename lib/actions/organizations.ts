@@ -4,9 +4,11 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { logAuditEvent } from "@/lib/audit/log";
 import { slugify } from "@/lib/text/slug";
 import type { AuthActionState } from "@/lib/actions/auth";
+import { normalizeAllowedOrigins } from "@/lib/widget/origins";
 
 const onboardingSchema = z.object({
   businessName: z.string().min(1, "Business name is required"),
@@ -15,6 +17,8 @@ const onboardingSchema = z.object({
   timezone: z.string().min(1),
   supportEmail: z.email().optional().or(z.literal("")),
   brandVoice: z.string().optional(),
+  websiteUrl: z.url("Enter a valid website URL"),
+  welcomeMessage: z.string().min(1).max(240),
   openTime: z.string().optional(),
   closeTime: z.string().optional(),
 });
@@ -30,11 +34,18 @@ export async function completeOnboardingAction(
     timezone: formData.get("timezone"),
     supportEmail: formData.get("supportEmail") || "",
     brandVoice: formData.get("brandVoice") || undefined,
+    websiteUrl: formData.get("websiteUrl"),
+    welcomeMessage: formData.get("welcomeMessage"),
     openTime: formData.get("openTime") || undefined,
     closeTime: formData.get("closeTime") || undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: parsed.data.timezone }).format();
+  } catch {
+    return { error: "Enter a valid IANA timezone, for example Europe/Istanbul" };
   }
 
   const supabase = await createClient();
@@ -46,26 +57,32 @@ export async function completeOnboardingAction(
   const baseSlug = slugify(parsed.data.businessName) || "org";
   let organizationId: string | null = null;
   let lastError: string | null = null;
+  let allowedOrigin: string;
+  try {
+    [allowedOrigin] = normalizeAllowedOrigins(parsed.data.websiteUrl);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Enter a valid website URL" };
+  }
 
   for (let attempt = 0; attempt < 5 && !organizationId; attempt++) {
     const slug = attempt === 0 ? baseSlug : `${baseSlug}-${Math.random().toString(36).slice(2, 6)}`;
-    const { data, error } = await supabase
-      .from("organizations")
-      .insert({
-        name: parsed.data.businessName,
-        slug,
-        industry: parsed.data.industry ?? null,
-        default_lang: parsed.data.defaultLang,
-        timezone: parsed.data.timezone,
-        support_email: parsed.data.supportEmail || null,
-        brand_voice: parsed.data.brandVoice ?? null,
-        created_by: user.id,
-      })
-      .select("id")
-      .single();
+    const { data, error } = await supabase.rpc("create_organization_with_chatbot", {
+      input_name: parsed.data.businessName,
+      input_slug: slug,
+      input_industry: parsed.data.industry ?? null,
+      input_default_lang: parsed.data.defaultLang,
+      input_timezone: parsed.data.timezone,
+      input_support_email: parsed.data.supportEmail || null,
+      input_brand_voice: parsed.data.brandVoice ?? null,
+      input_open_time: parsed.data.openTime ?? null,
+      input_close_time: parsed.data.closeTime ?? null,
+      input_allowed_origin: allowedOrigin,
+      input_welcome_message: parsed.data.welcomeMessage,
+      input_widget_key: crypto.randomUUID(),
+    });
 
     if (data) {
-      organizationId = data.id;
+      organizationId = data;
     } else {
       lastError = error?.message ?? "Could not create organization";
       if (!error?.message?.includes("duplicate key")) break;
@@ -74,23 +91,7 @@ export async function completeOnboardingAction(
 
   if (!organizationId) return { error: lastError ?? "Could not create organization" };
 
-  const { error: memberError } = await supabase
-    .from("organization_members")
-    .insert({ organization_id: organizationId, user_id: user.id, role: "owner" });
-  if (memberError) return { error: memberError.message };
-
-  if (parsed.data.openTime && parsed.data.closeTime) {
-    const rows = Array.from({ length: 7 }, (_, day) => ({
-      organization_id: organizationId,
-      day_of_week: day,
-      open_time: parsed.data.openTime,
-      close_time: parsed.data.closeTime,
-      is_closed: day === 0 || day === 6, // Sun/Sat closed by default, editable later in Settings
-    }));
-    await supabase.from("business_hours").insert(rows);
-  }
-
-  redirect("/dashboard");
+  redirect("/settings?setup=complete");
 }
 
 const updateBrandSchema = z.object({
@@ -199,6 +200,16 @@ export async function deleteOrganizationAction(
 
   const { error } = await supabase.from("organizations").delete().eq("id", parsed.data.organizationId);
   if (error) return { error: error.message };
+
+  const { count: remainingMemberships } = await supabase
+    .from("organization_members")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id);
+  if ((remainingMemberships ?? 0) === 0) {
+    const admin = createAdminClient();
+    const { error: deleteUserError } = await admin.auth.admin.deleteUser(user.id);
+    if (deleteUserError) return { error: `Organization deleted, but account cleanup failed: ${deleteUserError.message}` };
+  }
 
   await supabase.auth.signOut();
   redirect("/login");

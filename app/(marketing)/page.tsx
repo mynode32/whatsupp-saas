@@ -24,8 +24,8 @@ const content = {
   tr: {
     nav: ["Özellikler", "Nasıl çalışır", "Fiyatlar"], signin: "Giriş yap", demo: "Demoyu aç",
     h1a: "Müşterin yazıyor.", h1b: "Yanıt çoktan hazır.",
-    sub: "mynode WhatsApp, Instagram ve web sohbetini tek gelen kutusuna bağlar; bilgi tabanından beslenen AI her mesaja markanın tonuyla doğru bir yanıt yazar. Ekibin onaylar, sık sorulanları otomasyon kapatır.",
-    cta1: "Ücretsiz dene", cta2: "Nasıl çalışır", social: "1.200+ ekip müşterilerini mynode'yla bekletmeden yanıtlıyor.",
+    sub: "Hesabını aç, site adresini gir ve tek satır kodla chatbotunu yayına al. Web ve WhatsApp mesajlarını aynı gelen kutusundan yönet; Instagram bağlantısını Meta onayıyla ekle.",
+    cta1: "Chatbotunu kur", cta2: "Nasıl çalışır", social: "Self-servis kurulum · Kredi kartı gerektirmez · Pilot erişim açık",
     marqueeTitle: "Her kanaldaki her mesaj — tek kutuda",
     marquee: ["WhatsApp", "Instagram", "Web sohbet", "Kargo takibi", "İade", "Stok sorusu", "Şikayet", "Çalışma saatleri", "Sipariş durumu", "Çok dilli"],
     problemKicker: "Tanıdık geldi mi",
@@ -53,12 +53,12 @@ const content = {
     proofNote: "*Örnek/gösterim amaçlı rakamlar — henüz gerçek müşteri verisi yoktur.",
     proof: [{ big: "12 sn", l: "ortalama ilk yanıt", c: "AI taslak hazır geldiği için" }, { big: "%68", l: "AI ile otomatik çözüm", c: "İnsan gerekmeden kapanan" }, { big: "3.1×", l: "daha fazla konuşma / kişi", c: "Aynı ekiple" }],
     quote: "“Akşamları gelen WhatsApp mesajları sabaha kalmıyordu artık. mynode çoğunu kendi kapatıyor, ekibim sadece gerçekten önemli olanlara bakıyor.”",
-    quoteName: "Selin Ö.", quoteRole: "Kurucu · butik moda markası",
+    quoteName: "Pilot senaryosu", quoteRole: "Temsili e-ticaret akışı",
     trustKicker: "Sessiz söz",
-    trustH: ["AI uydurmaz.", "Senin sözünü söyler."],
-    trustBody: "mynode yalnızca senin bilgi tabanından cevap üretir ve kaynağını gösterir. Emin olmadığında bir insana devreder; istemediğin sürece hiçbir yanıt onaysız gönderilmez.",
+    trustH: ["AI için güvenlik önce.", "Kontrol sende kalır."],
+    trustBody: "Planlanan AI beta yalnızca yayınladığın bilgi tabanını kullanacak, kaynak gösterecek ve insan onayıyla başlayacak. Bugünkü otomasyon motoru yalnızca açıkça tanımladığın kuralları çalıştırır.",
     trustBullets: ["Kaynaklı yanıt: her taslak hangi makaleden geldiğini gösterir.", "Düşük güvende devret: AI emin değilse konuşmayı ekibe atar.", "Önce onay: güvenene kadar tek tıkla gönder, sonra otomatikleştir.", "Markanın tonu: her yanıt senin diline ve kurallarına uyar."],
-    pricingKicker: "Fiyatlar", pricingH: ["Tek kutu.", "Dürüst fiyat."],
+    pricingKicker: "Fiyatlar", pricingH: ["Tek kutu.", "Dürüst fiyat."], pricingNote: "Pilot dönem fiyatlarıdır; çevrimiçi ödeme henüz aktif değildir.",
     faqKicker: "Merak edilenler", faqH: "Kısa cevaplar.",
     finaleKicker: "Dene · 90 saniye", finaleH: "Müşterini bekletme.",
     finaleBody: "Önceden doldurulmuş canlı bir demo — her konuşma, her AI taslağı tıklanabilir. Kart yok, kayıt yok.",
@@ -68,9 +68,9 @@ const content = {
     previewSuggested: "AI önerisi", previewSource: "Bilgi tabanı · Kargo süreleri", previewSend: "Tek tıkla gönder", previewConf: "güven",
 
     /* Interactive live demo */
-    demoKicker: "Canlı dene",
+    demoKicker: "AI beta önizlemesi",
     demoH: ["Yanıtı canlı gör.", "Tıkla, gönder, izle."],
-    demoBody: "Gerçek bir gelen kutusu gibi. Müşteri yazar, mynode bir taslak hazırlar — “gönder”e bas, yanıt gitsin ve bir sonraki mesaj düşsün.",
+    demoBody: "Yaklaşan AI taslak deneyiminin etkileşimli önizlemesi. Bugünkü üründe web chatbot, WhatsApp, hazır yanıtlar ve kural tabanlı otomasyonlar çalışır.",
     demoCustomer: "Ayşe Kaya", demoChannel: "WhatsApp",
     demoSourceLabel: "Bilgi tabanı", demoConf: "güven", demoSend: "Yanıtı gönder", demoSent: "Gönderildi",
     demoTyping: "Ayşe yazıyor…",
@@ -85,12 +85,11 @@ const content = {
     /* Channels showcase */
     chanKicker: "Tek kutu, her kanal",
     chanH: ["Müşteri nerede yazarsa,", "yanıt orada."],
-    chanBody: "WhatsApp, Instagram, web sohbet ve e-posta — hepsi tek bir akışta birleşir. Ekibin sekme değiştirmeden, sırayla yanıtlar.",
+    chanBody: "Web chatbot ve WhatsApp mesajları tek akışta birleşir. Instagram DM altyapısı hazırdır; gerçek hesap bağlantısı Meta uygulama onayından sonra etkinleşir.",
     channels: [
       { icon: "whatsapp", name: "WhatsApp", hue: 152, stat: "%58 trafik", note: "Sipariş ve kargo soruları" },
       { icon: "instagram", name: "Instagram DM", hue: 320, stat: "%29 trafik", note: "Ürün ve stok soruları" },
       { icon: "web", name: "Web sohbet", hue: 232, stat: "%9 trafik", note: "Sitedeki ziyaretçiler" },
-      { icon: "email", name: "E-posta", hue: 28, stat: "%4 trafik", note: "Resmî talep ve faturalar" },
     ],
 
     /* Deflect / automate deep act */
@@ -163,8 +162,8 @@ const content = {
   en: {
     nav: ["Features", "How it works", "Pricing"], signin: "Sign in", demo: "Open the demo",
     h1a: "Your customer is typing.", h1b: "The reply is already drafted.",
-    sub: "mynode connects WhatsApp, Instagram and web chat into one inbox; a knowledge-grounded AI writes an accurate reply in your brand tone for every message. Your team approves, automations close the routine ones.",
-    cta1: "Try it free", cta2: "How it works", social: "1,200+ teams answer customers without the wait, with mynode.",
+    sub: "Create an account, enter your website and launch your chatbot with one line of code. Manage web and WhatsApp messages together, then add Instagram after Meta approval.",
+    cta1: "Launch your chatbot", cta2: "How it works", social: "Self-service setup · No card required · Pilot access open",
     marqueeTitle: "Every message, every channel — in one inbox",
     marquee: ["WhatsApp", "Instagram", "Web chat", "Order tracking", "Returns", "Stock", "Complaints", "Hours", "Order status", "Multilingual"],
     problemKicker: "Sound familiar",
@@ -192,12 +191,12 @@ const content = {
     proofNote: "*Illustrative example figures — no real customer data yet.",
     proof: [{ big: "12 sec", l: "average first response", c: "Because the AI draft is ready" }, { big: "68%", l: "deflected by AI", c: "Closed with no human" }, { big: "3.1×", l: "more chats per agent", c: "With the same team" }],
     quote: "“Evening WhatsApp messages no longer pile up until morning. mynode closes most of them itself, and my team only handles what really matters.”",
-    quoteName: "Selin Ö.", quoteRole: "Founder · boutique fashion brand",
+    quoteName: "Pilot scenario", quoteRole: "Illustrative e-commerce flow",
     trustKicker: "The quiet promise",
-    trustH: ["The AI won't invent.", "It speaks your words."],
-    trustBody: "mynode only answers from your knowledge base and shows its source. When unsure it hands off to a human; and unless you choose otherwise, nothing sends without approval.",
+    trustH: ["Safety first for AI.", "You stay in control."],
+    trustBody: "The planned AI beta will use only your published knowledge, show sources and start with human approval. Today's automation engine runs only rules you explicitly configure.",
     trustBullets: ["Cited replies: every draft shows which article it came from.", "Hands off when unsure: low confidence routes the chat to your team.", "Approval first: send with one tap until you trust it, then automate.", "Your brand voice: every reply follows your tone and rules."],
-    pricingKicker: "Pricing", pricingH: ["One inbox.", "Honest pricing."],
+    pricingKicker: "Pricing", pricingH: ["One inbox.", "Honest pricing."], pricingNote: "Pilot pricing; online checkout is not active yet.",
     faqKicker: "Good to know", faqH: "The short answers.",
     finaleKicker: "Try it · 90 seconds", finaleH: "Don't keep them waiting.",
     finaleBody: "A pre-loaded live demo — every conversation and AI draft is interactive. No card, no signup.",
@@ -207,9 +206,9 @@ const content = {
     previewSuggested: "AI suggestion", previewSource: "Knowledge · Shipping times", previewSend: "Send in one tap", previewConf: "confidence",
 
     /* Interactive live demo */
-    demoKicker: "Try it live",
+    demoKicker: "AI beta preview",
     demoH: ["See the reply, live.", "Click, send, watch."],
-    demoBody: "Just like a real inbox. The customer writes, mynode drafts a reply — hit “send,” it goes out, and the next message lands.",
+    demoBody: "An interactive preview of the upcoming AI drafting experience. Today, web chat, WhatsApp, saved replies and rule-based automations are functional.",
     demoCustomer: "Ayşe Kaya", demoChannel: "WhatsApp",
     demoSourceLabel: "Knowledge", demoConf: "confidence", demoSend: "Send reply", demoSent: "Sent",
     demoTyping: "Ayşe is typing…",
@@ -224,12 +223,11 @@ const content = {
     /* Channels showcase */
     chanKicker: "One inbox, every channel",
     chanH: ["Wherever the customer writes,", "the reply is right there."],
-    chanBody: "WhatsApp, Instagram, web chat and email — all merge into one stream. Your team replies in order, without juggling tabs.",
+    chanBody: "Web chat and WhatsApp merge into one stream. Instagram DM infrastructure is ready and activates after Meta app approval.",
     channels: [
       { icon: "whatsapp", name: "WhatsApp", hue: 152, stat: "58% of volume", note: "Order & shipping questions" },
       { icon: "instagram", name: "Instagram DM", hue: 320, stat: "29% of volume", note: "Product & stock questions" },
       { icon: "web", name: "Web chat", hue: 232, stat: "9% of volume", note: "Visitors on your site" },
-      { icon: "email", name: "Email", hue: 28, stat: "4% of volume", note: "Formal requests & invoices" },
     ],
 
     /* Deflect / automate deep act */
@@ -521,7 +519,7 @@ export default function YanitlaLanding() {
       </section>
 
       {/* LIVE INTERACTIVE DEMO */}
-      <section className="py-20 lg:py-28">
+      <section id="demo" className="py-20 lg:py-28">
         <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 lg:grid-cols-[1fr_1.05fr] lg:px-8">
           <div>
             <p className="label-mono inline-flex items-center gap-2 text-primary"><Sparkles className="h-3.5 w-3.5" /> {c.demoKicker}</p>
@@ -548,7 +546,7 @@ export default function YanitlaLanding() {
       <section className="border-t border-border bg-card/40 py-20 lg:py-28">
         <div className="mx-auto max-w-6xl px-5 lg:px-8">
           <div className="max-w-2xl"><p className="label-mono inline-flex items-center gap-2 text-primary"><span className="h-px w-7 bg-primary" /> {c.chanKicker}</p><h2 className="mt-4 font-display text-[clamp(28px,4vw,48px)] font-bold leading-[1.04] tracking-tight">{c.chanH[0]} <span className="text-primary">{c.chanH[1]}</span></h2><p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground">{c.chanBody}</p></div>
-          <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {c.channels.map((ch) => { const Ic = chanIcons[ch.icon]; return (
               <article key={ch.name} className="group relative overflow-hidden rounded-3xl border border-border bg-card p-6 shadow-soft transition-all hover:-translate-y-1 hover:shadow-pop">
                 <span className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl transition-opacity group-hover:opacity-100" style={{ background: `oklch(70% 0.16 ${ch.hue} / 0.25)`, opacity: 0.6 }} aria-hidden />
@@ -770,7 +768,7 @@ export default function YanitlaLanding() {
       {/* PRICING */}
       <section id="pricing" className="py-12 lg:py-20">
         <div className="mx-auto max-w-5xl px-5 lg:px-8">
-          <div className="mx-auto mb-12 max-w-xl text-center"><p className="label-mono text-primary">{c.pricingKicker}</p><h2 className="mt-3 font-display text-[clamp(28px,4.5vw,48px)] font-bold tracking-tight">{c.pricingH[0]} <span className="text-primary">{c.pricingH[1]}</span></h2></div>
+          <div className="mx-auto mb-12 max-w-xl text-center"><p className="label-mono text-primary">{c.pricingKicker}</p><h2 className="mt-3 font-display text-[clamp(28px,4.5vw,48px)] font-bold tracking-tight">{c.pricingH[0]} <span className="text-primary">{c.pricingH[1]}</span></h2><p className="mt-3 text-xs text-muted-foreground">{c.pricingNote}</p></div>
           <div className="grid gap-4 md:grid-cols-3">
             {mk.pricing.map((p) => (
               <article key={p.name} className={cn("relative rounded-3xl p-7 lg:p-8", p.featured ? "border border-primary/40 bg-card glow" : "border border-border bg-card shadow-soft")}>

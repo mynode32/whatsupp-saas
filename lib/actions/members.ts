@@ -118,6 +118,27 @@ export async function updateMemberRoleAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in" };
+
+  const { data: target } = await supabase
+    .from("organization_members")
+    .select("organization_id, user_id, role")
+    .eq("id", parsed.data.memberId)
+    .maybeSingle();
+  if (!target) return { error: "Member not found" };
+
+  const { data: actor } = await supabase
+    .from("organization_members")
+    .select("role")
+    .eq("organization_id", target.organization_id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!actor || (actor.role !== "owner" && actor.role !== "admin")) {
+    return { error: "You don't have permission to do that." };
+  }
+  if (actor.role !== "owner" && (target.role === "owner" || parsed.data.role === "owner")) {
+    return { error: "Only an owner can grant or change the owner role." };
+  }
 
   const { data: updated, error } = await supabase
     .from("organization_members")
@@ -129,7 +150,7 @@ export async function updateMemberRoleAction(
 
   await logAuditEvent({
     organizationId: updated.organization_id,
-    actorId: user?.id ?? null,
+    actorId: user.id,
     action: "update_member_role",
     targetType: "organization_member",
     targetId: updated.user_id,

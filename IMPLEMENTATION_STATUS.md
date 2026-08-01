@@ -44,4 +44,12 @@ kararları/kaynakları gerekiyor — tahmin yürütülmeyecek, sorulacak:
 
 ## Faz geçmişi
 
-- **Faz 0** — Tamamlandı (bkz. altındaki rapor).
+- **Faz 0** — Tamamlandı.
+- **Faz 1** — Tamamlandı: Zod env doğrulama (`lib/env.ts`, `lib/env.server.ts`),
+  32 tablo şema migration'ı (`supabase/migrations/0001-0006`, canlı projeye
+  uygulandı ve doğrulandı), tüm tablolarda RLS + rol bazlı politikalar
+  (`0007-0008`, anon key ile [] / service-role ile tam erişim doğrulandı),
+  Supabase client'ları (`lib/supabase/*`) ve repository katmanı (`lib/db/*`,
+  şimdilik organizations/profiles/organization_members — diğerleri
+  kullanan faz geldikçe eklenecek). Gerçek çapraz-organizasyon RLS testi
+  Faz 2'nin gerçek kullanıcıları olmadan yapılamıyor, Faz 2'ye ertelendi.

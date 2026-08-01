@@ -5,29 +5,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { chunkContent } from "@/lib/knowledge/chunk";
 import type { AuthActionState } from "@/lib/actions/auth";
 import type { Database } from "@/lib/supabase/types";
-
-/** Paragraph-based chunking, capped at ~800 chars per chunk — good enough for FTS at this scale. */
-function chunkContent(content: string): string[] {
-  const paragraphs = content
-    .split(/\n\s*\n/)
-    .map((p) => p.trim())
-    .filter(Boolean);
-
-  const chunks: string[] = [];
-  let current = "";
-  for (const p of paragraphs) {
-    if (current && (current + "\n\n" + p).length > 800) {
-      chunks.push(current);
-      current = p;
-    } else {
-      current = current ? current + "\n\n" + p : p;
-    }
-  }
-  if (current) chunks.push(current);
-  return chunks.length ? chunks : content.trim() ? [content.trim()] : [];
-}
 
 async function resyncChunks(supabase: SupabaseClient<Database>, documentId: string, organizationId: string, content: string) {
   await supabase.from("knowledge_chunks").delete().eq("document_id", documentId);

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logAuditEvent } from "@/lib/audit/log";
+import { slugify } from "@/lib/text/slug";
 import type { AuthActionState } from "@/lib/actions/auth";
 
 const onboardingSchema = z.object({
@@ -17,16 +18,6 @@ const onboardingSchema = z.object({
   openTime: z.string().optional(),
   closeTime: z.string().optional(),
 });
-
-function slugify(name: string) {
-  return name
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
-    .slice(0, 40);
-}
 
 export async function completeOnboardingAction(
   _prev: AuthActionState,

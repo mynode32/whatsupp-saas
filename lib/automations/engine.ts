@@ -4,32 +4,10 @@ import type { Database, AutomationAction } from "@/lib/supabase/types";
 import { createTwilioClient } from "@/lib/twilio/client";
 import { serverEnv } from "@/lib/env.server";
 import { publicEnv } from "@/lib/env";
+import { isWithinBusinessHours } from "@/lib/automations/business-hours";
 
 type AdminClient = SupabaseClient<Database>;
 type BusinessHour = Database["public"]["Tables"]["business_hours"]["Row"];
-
-const WEEKDAY_INDEX: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-
-function isWithinBusinessHours(hours: BusinessHour[], now: Date, timezone: string): boolean {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(now);
-
-  const dayOfWeek = WEEKDAY_INDEX[parts.find((p) => p.type === "weekday")?.value ?? "Mon"] ?? 1;
-  const nowMinutes = Number(parts.find((p) => p.type === "hour")?.value ?? 0) * 60 + Number(parts.find((p) => p.type === "minute")?.value ?? 0);
-
-  const today = hours.find((h) => h.day_of_week === dayOfWeek);
-  if (!today || today.is_closed || !today.open_time || !today.close_time) return false;
-
-  const [openH, openM] = today.open_time.split(":").map(Number);
-  const [closeH, closeM] = today.close_time.split(":").map(Number);
-  const nowInWindow = nowMinutes >= openH * 60 + openM && nowMinutes < closeH * 60 + closeM;
-  return nowInWindow;
-}
 
 async function executeAction(
   admin: AdminClient,

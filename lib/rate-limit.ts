@@ -1,5 +1,5 @@
-import "server-only";
-
+// No "server-only" guard: this holds no secrets, just an in-memory
+// counter, and it needs to be importable from a plain test runner.
 const buckets = new Map<string, { count: number; resetAt: number }>();
 const DEFAULT_WINDOW_MS = 60_000;
 const DEFAULT_MAX_REQUESTS = 20;

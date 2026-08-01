@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { logAuditEvent } from "@/lib/audit/log";
-
-function csvEscape(value: string): string {
-  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
-}
+import { csvEscape } from "@/lib/csv";
 
 /** Admin+ only CSV export of the org's conversations — logged to audit_logs. */
 export async function GET() {

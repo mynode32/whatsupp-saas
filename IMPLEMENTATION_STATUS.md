@@ -100,3 +100,11 @@ Faz 5 (AI cevap üretimi) için:
   otomasyon yanıtı). İlk rate-limit testinde yanlış-negatif alındı
   (istekler pencereden yavaştı), eşzamanlı yükle tekrar test edilip
   doğrulandı.
+- **Faz 9** — Tamamlandı: gerçek bildirim merkezi (Topbar'da, servis-
+  rolü ile oluşturulan, kullanıcı sadece kendininkini görür), konuşma
+  atama + atama bildirimi, kanal hatası bildirimi (admin+'a), iç
+  notlar (müşteriye gitmeyen), hazır yanıtlar (composer'da hızlı ekle),
+  admin+ CSV dışa aktarma (audit_logs'a yazılıyor). Canlı RLS testiyle
+  doğrulandı. SLA-riski/düşük-güven bildirimleri, e-posta bildirimleri,
+  bildirim tercihleri/sessiz saatler ve agent çevrimiçi durumu kasıtlı
+  olarak eklenmedi (altyapıları yok — sahte göstermek yerine atlandı).

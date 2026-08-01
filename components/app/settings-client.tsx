@@ -10,6 +10,7 @@ import { Input, Label } from "@/components/ui/input";
 import { Icon } from "@/components/ui/icon";
 import { useLang } from "@/components/i18n/language-provider";
 import { updateOrganizationBrandAction } from "@/lib/actions/organizations";
+import { connectTwilioAction } from "@/lib/actions/channels";
 import {
   inviteMemberAction,
   cancelInvitationAction,
@@ -22,6 +23,7 @@ import type { Database, OrgRole } from "@/lib/supabase/types";
 
 type Organization = Database["public"]["Tables"]["organizations"]["Row"];
 type Invitation = Database["public"]["Tables"]["invitations"]["Row"];
+type ChannelConnection = Database["public"]["Tables"]["channel_connections"]["Row"];
 
 const initialState: AuthActionState = {};
 
@@ -30,6 +32,7 @@ export function SettingsClient({
   organization,
   members,
   invitations,
+  channels,
   currentUserId,
   currentUserRole,
 }: {
@@ -37,6 +40,7 @@ export function SettingsClient({
   organization: Organization | null;
   members: TeamMember[];
   invitations: Invitation[];
+  channels: ChannelConnection[];
   currentUserId: string;
   currentUserRole: OrgRole;
 }) {
@@ -70,6 +74,11 @@ export function SettingsClient({
       {/* Organization (real, editable) */}
       {organization && (
         <OrganizationCard organization={organization} isAdmin={isAdmin} />
+      )}
+
+      {/* Channels */}
+      {organization && isAdmin && (
+        <ChannelsCard organizationId={organization.id} channels={channels} />
       )}
 
       {/* Team */}
@@ -183,6 +192,57 @@ function OrganizationCard({ organization, isAdmin }: { organization: Organizatio
               </Button>
             </div>
           )}
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ChannelsCard({ organizationId, channels }: { organizationId: string; channels: ChannelConnection[] }) {
+  const { ui } = useLang();
+  const [state, formAction, pending] = useActionState(connectTwilioAction, initialState);
+  const whatsapp = channels.find((c) => c.channel_type === "whatsapp");
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{ui.channels}</CardTitle>
+        <p className="text-sm text-muted-foreground">{ui.channelsHint}</p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-4 rounded-lg border border-border p-4">
+          <span className="grid h-10 w-10 place-items-center rounded-lg bg-muted text-muted-foreground">
+            <Icon name="message-circle" className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">WhatsApp (Twilio)</p>
+            <p className="truncate text-sm text-muted-foreground">
+              {whatsapp?.external_id ?? ui.notConnected}
+              {whatsapp?.last_error ? ` · ${whatsapp.last_error}` : ""}
+            </p>
+          </div>
+          {whatsapp?.status === "connected" ? (
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-success">
+              <CheckCircle2 className="h-4 w-4" /> {ui.connected}
+            </span>
+          ) : whatsapp?.status === "error" ? (
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-destructive">
+              <CircleDashed className="h-4 w-4" /> {ui.connectionError}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+              <CircleDashed className="h-4 w-4" /> {ui.notConnected}
+            </span>
+          )}
+        </div>
+
+        <form action={formAction} className="flex items-center gap-3">
+          <input type="hidden" name="organizationId" value={organizationId} />
+          <Button type="submit" variant="outline" disabled={pending} className="gap-2">
+            {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+            {ui.testConnection}
+          </Button>
+          {state.error && <p className="text-sm text-destructive">{state.error}</p>}
         </form>
       </CardContent>
     </Card>

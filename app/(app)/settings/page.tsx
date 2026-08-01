@@ -23,13 +23,18 @@ export default async function SettingsPage() {
     .limit(1)
     .maybeSingle();
 
-  const [organization, members, invitations] = membership
+  const [organization, members, invitations, channels] = membership
     ? await Promise.all([
         getOrganization(membership.organization_id),
         listTeamMembers(membership.organization_id),
         listPendingInvitations(membership.organization_id),
+        supabase
+          .from("channel_connections")
+          .select("*")
+          .eq("organization_id", membership.organization_id)
+          .then((r) => r.data ?? []),
       ])
-    : [null, [], []];
+    : [null, [], [], []];
 
   return (
     <SettingsClient
@@ -37,6 +42,7 @@ export default async function SettingsPage() {
       organization={organization}
       members={members}
       invitations={invitations}
+      channels={channels}
       currentUserId={user!.id}
       currentUserRole={membership?.role ?? "viewer"}
     />

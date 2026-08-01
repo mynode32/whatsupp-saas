@@ -89,6 +89,12 @@ export const ui = {
     removeMember: "Kaldır",
     you: "sen",
     adminOnlySection: "Bu bölüm yalnızca yönetici ve sahiplere görünür.",
+    // channels
+    channels: "Kanallar",
+    channelsHint: ".env.local'deki Twilio bilgileriyle WhatsApp bağlantısını test et.",
+    testConnection: "Bağlantıyı test et",
+    notConnected: "Bağlı değil",
+    connectionError: "Bağlantı hatası",
   },
   en: {
     features: "Features",
@@ -170,6 +176,12 @@ export const ui = {
     removeMember: "Remove",
     you: "you",
     adminOnlySection: "This section is only visible to admins and owners.",
+    // channels
+    channels: "Channels",
+    channelsHint: "Test the WhatsApp connection using the Twilio credentials in .env.local.",
+    testConnection: "Test connection",
+    notConnected: "Not connected",
+    connectionError: "Connection error",
   },
 } satisfies Record<Lang, Record<string, string>>;
 

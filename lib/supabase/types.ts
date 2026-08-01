@@ -120,6 +120,171 @@ export interface Database {
         Update: Partial<Omit<Database["public"]["Tables"]["business_hours"]["Insert"], "organization_id" | "day_of_week">>;
         Relationships: [];
       };
+      channel_connections: {
+        Row: {
+          id: string;
+          organization_id: string;
+          channel_type: "whatsapp" | "instagram" | "web";
+          provider: "twilio" | "meta" | "native";
+          external_id: string | null;
+          display_name: string | null;
+          status: "disconnected" | "connected" | "error";
+          last_event_at: string | null;
+          last_error: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          channel_type: "whatsapp" | "instagram" | "web";
+          provider: "twilio" | "meta" | "native";
+          external_id?: string | null;
+          display_name?: string | null;
+          status?: "disconnected" | "connected" | "error";
+          last_event_at?: string | null;
+          last_error?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["channel_connections"]["Insert"], "organization_id">>;
+        Relationships: [];
+      };
+      contacts: {
+        Row: {
+          id: string;
+          organization_id: string;
+          display_name: string | null;
+          primary_channel: "whatsapp" | "instagram" | "web" | null;
+          locale: string | null;
+          metadata: Record<string, unknown>;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          display_name?: string | null;
+          primary_channel?: "whatsapp" | "instagram" | "web" | null;
+          locale?: string | null;
+          metadata?: Record<string, unknown>;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["contacts"]["Insert"], "organization_id">>;
+        Relationships: [];
+      };
+      contact_identities: {
+        Row: {
+          id: string;
+          organization_id: string;
+          contact_id: string;
+          channel: "whatsapp" | "instagram" | "web";
+          external_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          contact_id: string;
+          channel: "whatsapp" | "instagram" | "web";
+          external_id: string;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["contact_identities"]["Insert"], "organization_id">>;
+        Relationships: [];
+      };
+      conversations: {
+        Row: {
+          id: string;
+          organization_id: string;
+          contact_id: string;
+          channel_connection_id: string | null;
+          status: "open" | "pending" | "resolved";
+          priority: "low" | "normal" | "high";
+          assigned_to: string | null;
+          unread_count: number;
+          last_message_at: string | null;
+          first_response_at: string | null;
+          resolved_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          contact_id: string;
+          channel_connection_id?: string | null;
+          status?: "open" | "pending" | "resolved";
+          priority?: "low" | "normal" | "high";
+          assigned_to?: string | null;
+          unread_count?: number;
+          last_message_at?: string | null;
+          first_response_at?: string | null;
+          resolved_at?: string | null;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["conversations"]["Insert"], "organization_id">>;
+        Relationships: [];
+      };
+      messages: {
+        Row: {
+          id: string;
+          organization_id: string;
+          conversation_id: string;
+          direction: "inbound" | "outbound";
+          sender_type: "contact" | "agent" | "ai" | "system";
+          sender_id: string | null;
+          body: string | null;
+          provider_message_id: string | null;
+          status: "queued" | "sent" | "delivered" | "read" | "failed";
+          sent_at: string | null;
+          delivered_at: string | null;
+          read_at: string | null;
+          failed_at: string | null;
+          error_reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          conversation_id: string;
+          direction: "inbound" | "outbound";
+          sender_type: "contact" | "agent" | "ai" | "system";
+          sender_id?: string | null;
+          body?: string | null;
+          provider_message_id?: string | null;
+          status?: "queued" | "sent" | "delivered" | "read" | "failed";
+          sent_at?: string | null;
+          delivered_at?: string | null;
+          read_at?: string | null;
+          failed_at?: string | null;
+          error_reason?: string | null;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["messages"]["Insert"], "organization_id">>;
+        Relationships: [];
+      };
+      webhook_events: {
+        Row: {
+          id: string;
+          organization_id: string | null;
+          provider: string;
+          external_event_id: string;
+          payload: Record<string, unknown>;
+          status: "received" | "processing" | "processed" | "failed";
+          error_message: string | null;
+          received_at: string;
+          processed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id?: string | null;
+          provider: string;
+          external_event_id: string;
+          payload: Record<string, unknown>;
+          status?: "received" | "processing" | "processed" | "failed";
+          error_message?: string | null;
+          processed_at?: string | null;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["webhook_events"]["Insert"], "provider" | "external_event_id">>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

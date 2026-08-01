@@ -408,6 +408,68 @@ export interface Database {
         Update: Partial<Omit<Database["public"]["Tables"]["knowledge_chunks"]["Insert"], "organization_id" | "document_id">>;
         Relationships: [];
       };
+      ai_reply_drafts: {
+        Row: {
+          id: string;
+          organization_id: string;
+          conversation_id: string;
+          message_id: string | null;
+          draft: string;
+          citations: { title: string }[];
+          confidence: number | null;
+          needs_human: boolean;
+          reason: string | null;
+          detected_intent: string | null;
+          sensitive_data_detected: boolean;
+          status: "pending" | "approved" | "edited" | "rejected" | "sent";
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          conversation_id: string;
+          message_id?: string | null;
+          draft: string;
+          citations?: { title: string }[];
+          confidence?: number | null;
+          needs_human?: boolean;
+          reason?: string | null;
+          detected_intent?: string | null;
+          sensitive_data_detected?: boolean;
+          status?: "pending" | "approved" | "edited" | "rejected" | "sent";
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["ai_reply_drafts"]["Insert"], "organization_id" | "conversation_id">>;
+        Relationships: [];
+      };
+      ai_usage_events: {
+        Row: {
+          id: string;
+          organization_id: string;
+          conversation_id: string | null;
+          model: string;
+          input_tokens: number;
+          output_tokens: number;
+          latency_ms: number | null;
+          cost_usd: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          conversation_id?: string | null;
+          model: string;
+          input_tokens?: number;
+          output_tokens?: number;
+          latency_ms?: number | null;
+          cost_usd?: number | null;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["ai_usage_events"]["Insert"], "organization_id">>;
+        Relationships: [];
+      };
       automation_rules: {
         Row: {
           id: string;

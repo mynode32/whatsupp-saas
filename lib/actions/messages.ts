@@ -12,6 +12,8 @@ import type { AuthActionState } from "@/lib/actions/auth";
 const sendSchema = z.object({
   conversationId: z.uuid(),
   body: z.string().min(1, "Message can't be empty").max(4096),
+  draftId: z.uuid().optional(),
+  draftText: z.string().optional(),
 });
 
 export async function sendMessageAction(
@@ -21,6 +23,8 @@ export async function sendMessageAction(
   const parsed = sendSchema.safeParse({
     conversationId: formData.get("conversationId"),
     body: formData.get("body"),
+    draftId: formData.get("draftId") || undefined,
+    draftText: formData.get("draftText") || undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
@@ -125,6 +129,18 @@ export async function sendMessageAction(
       first_response_at: conversation.first_response_at ?? now,
     })
     .eq("id", conversation.id);
+
+  if (parsed.data.draftId) {
+    await supabase
+      .from("ai_reply_drafts")
+      .update({
+        status: parsed.data.draftText === parsed.data.body ? "approved" : "edited",
+        reviewed_by: user.id,
+        reviewed_at: now,
+        message_id: message.id,
+      })
+      .eq("id", parsed.data.draftId);
+  }
 
   revalidatePath(`/conversations`);
   return { success: true };

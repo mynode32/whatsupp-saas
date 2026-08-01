@@ -9,6 +9,11 @@ import { z } from "zod";
 const serverSchema = z.object({
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
   ANTHROPIC_MODEL: z.string().min(1).default("claude-sonnet-4-5"),
+  OPENAI_API_KEY: z.string().min(1).optional(),
+  OPENAI_MODEL: z.string().min(1).default("gpt-4o-mini"),
+  // Only meaningful when both keys are set; otherwise whichever key
+  // exists is used. Lets an org with both configured pick one deliberately.
+  AI_PROVIDER: z.enum(["anthropic", "openai"]).optional(),
   TWILIO_ACCOUNT_SID: z.string().min(1).optional(),
   TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
   TWILIO_WHATSAPP_FROM: z.string().min(1).optional(),
@@ -31,6 +36,9 @@ function parseServerEnv() {
   const parsed = serverSchema.safeParse({
     ANTHROPIC_API_KEY: emptyToUndefined(process.env.ANTHROPIC_API_KEY),
     ANTHROPIC_MODEL: emptyToUndefined(process.env.ANTHROPIC_MODEL),
+    OPENAI_API_KEY: emptyToUndefined(process.env.OPENAI_API_KEY),
+    OPENAI_MODEL: emptyToUndefined(process.env.OPENAI_MODEL),
+    AI_PROVIDER: emptyToUndefined(process.env.AI_PROVIDER),
     TWILIO_ACCOUNT_SID: emptyToUndefined(process.env.TWILIO_ACCOUNT_SID),
     TWILIO_AUTH_TOKEN: emptyToUndefined(process.env.TWILIO_AUTH_TOKEN),
     TWILIO_WHATSAPP_FROM: emptyToUndefined(process.env.TWILIO_WHATSAPP_FROM),
@@ -54,6 +62,7 @@ export const serverEnv = parseServerEnv();
 
 export const integrationStatus = {
   anthropic: Boolean(serverEnv.ANTHROPIC_API_KEY),
+  openai: Boolean(serverEnv.OPENAI_API_KEY),
   twilio: Boolean(serverEnv.TWILIO_ACCOUNT_SID && serverEnv.TWILIO_AUTH_TOKEN && serverEnv.TWILIO_WHATSAPP_FROM),
   meta: Boolean(serverEnv.META_APP_ID && serverEnv.META_APP_SECRET && serverEnv.META_VERIFY_TOKEN),
   supabase: Boolean(

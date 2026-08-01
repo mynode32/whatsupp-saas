@@ -110,6 +110,52 @@ gerçek bir ekrandı.
   `META_APP_SECRET`/`META_VERIFY_TOKEN` girilip Meta App Review onayı
   geldikten sonra birlikte uçtan uca denenecek.
 
+## Faz 16 — AI cevap taslağı (kod tamam, gerçek anahtar bekliyor)
+
+Kullanıcının isteği: "AI belki GPT olur belki Claude" — tek bir sağlayıcıya
+kilitlenmeden ikisini de destekleyen bir katman.
+
+- `lib/ai/provider.ts`: `ANTHROPIC_API_KEY` veya `OPENAI_API_KEY`'den hangisi
+  ayarlıysa onu kullanır; ikisi de ayarlıysa `AI_PROVIDER` env'i ile seçilir.
+  Sağlayıcı değişse bile geri kalan kod (`lib/actions/ai.ts`) hiç değişmez.
+- `lib/ai/sensitive.ts`: kart numarası (Luhn doğrulamalı), IBAN, TC Kimlik No
+  (gerçek checksum algoritmasıyla) tespit eder — biri geçerse mesaj hiç AI
+  sağlayıcısına gönderilmiyor, temsilci kendisi yanıtlıyor. 7 gerçek unit
+  testle doğrulandı (`lib/ai/sensitive.test.ts`) — gerçek kimlik/kart
+  numaraları algılanıyor, rastgele 11-16 haneli sayılar (checksum'ı
+  tutmayan) yanlış pozitif vermiyor.
+- `lib/ai/retrieval.ts`: yalnızca **yayınlanmış** bilgi tabanı makalelerinden,
+  Postgres full-text search (`knowledge_chunks.search_vector`, Faz 4'ten
+  hazır) ile en alakalı parçaları çeker. Hiçbir eşleşme yoksa AI hiç
+  çağrılmıyor — "bilgi tabanında yok" diye temsilciye dönüyor, tahmin
+  yürütmüyor (spec'in "AI cevap uydurmasın" kuralı).
+- `lib/actions/ai.ts` (`generateSuggestedReplyAction`): konuşmanın son
+  müşteri mesajını alır, hassas veri kontrolünden geçirir, bilgi tabanından
+  kaynak bulur, marka sesine göre (`organizations.brand_voice`) taslak
+  üretir, `ai_reply_drafts`'a kaydeder (Faz 1'den beri şemada hazır bekleyen
+  tablo — hiç kullanılmıyordu), token kullanımını `ai_usage_events`'e yazar.
+  Taslak agent temsilci kullandığında ("Kullan") veya değiştirip
+  gönderdiğinde (`lib/actions/messages.ts`) durumu `approved`/`edited`
+  olarak, "Yoksay"da `rejected` olarak güncellenir — gerçek bir onay/ret
+  hunisi.
+- Conversations ekranında yeni bir panel: "AI önerisi oluştur" butonu,
+  öneri geldiğinde kaynak makale adları + "Kullan"/"Yoksay", hassas
+  veri/bilgi bulunamadı/yapılandırılmamış durumları için ayrı mesajlar.
+  Yalnızca agent+ rolü görür (viewer göremez — `ai_reply_drafts_update`
+  RLS politikasıyla aynı sınır).
+- Canlı testle doğrulandı (DB/RLS seviyesinde): `ai_reply_drafts`/
+  `ai_usage_events` tabloları hazır, kimliği doğrulanmış normal kullanıcı
+  bu tablolara doğrudan INSERT yapamıyor (yalnızca service-role — taslak
+  her zaman sunucu tarafından üretiliyor), org üyesi kendi taslağını
+  okuyup güncelleyebiliyor, ilgisiz bir kullanıcı başka org'un taslağını/
+  kullanım kaydını göremiyor.
+- **Eksik/bekleyen:** `.env.local`'de ne `ANTHROPIC_API_KEY` ne
+  `OPENAI_API_KEY` var — gerçek bir sağlayıcı çağrısı (taslak metni
+  gerçekten üretme) henüz canlı test edilmedi, yalnızca kod incelemesi +
+  build/typecheck/test yeşil. Anahtar geldiğinde bilgi tabanına gerçek bir
+  madde ekleyip uçtan uca (soru → doğru kaynaktan taslak → gönder) test
+  edilecek.
+
 **Durum tanımları:**
 - `DEMO_ONLY` — sadece statik/mock veri gösterir, gerçek backend çağrısı yok.
 - `PARTIAL` — bir miktar gerçek bağlantı var ama eksik/yarım.
@@ -128,7 +174,7 @@ yansıtır. `@anthropic-ai/sdk`, `stripe`, `@sentry/*` hâlâ kurulu değil.
 | 3 | WhatsApp alma/gönderme | `PARTIAL` | Gerçek Twilio entegrasyonu, artık **her organizasyon kendi Twilio hesabını bağlıyor** (Faz 14, `lib/actions/channels.ts`, `channel_secrets` tablosu): imza doğrulamalı webhook (`app/api/webhooks/twilio`, org-bazlı auth token ile), idempotent mesaj/konuşma/kişi oluşturma, org-bazlı gönderme (`lib/actions/messages.ts`) + status callback. Canlı test edildi (bkz. Faz 3 ve Faz 14 geçmişi) — gerçek WhatsApp cihaz round-trip'i kullanıcının WhatsApp erişimi geri geldiğinde tamamlanacak. `PARTIAL` nedeni: template/24-saat penceresi UI'da gösterilmiyor, tek-tık Embedded Signup yok (müşteri kendi Twilio hesabında birkaç adım atmak zorunda). |
 | 4 | Instagram mesajları | `PARTIAL` | İnbound webhook (imza doğrulamalı, idempotent, unified inbox — Faz 13.5) ve OAuth bağlama ekranı (Faz 15, `app/api/integrations/instagram/*`, `channel_instagram_credentials`) kod olarak tamam ve DB/route seviyesinde canlı test edildi. `PARTIAL` nedeni: gerçek bir Meta Developer App'i + App Review onayı olmadan hiçbir müşteri gerçekten bağlanamıyor — bu bir hesap/onay süreci, kod eksikliği değil. Outbound (agent'tan Instagram'a cevap gönderme) da bu onaydan sonra bağlanacak. |
 | 5 | Web chat | `PRODUCTION_READY` | Gerçek gömülebilir widget (`public/widget.js`, vanilla JS, XSS'e karşı yalnızca `textContent`) + public API (`app/api/widget/*`, service-role, origin allowlist, rate limit). Otomasyon motoru kanal-farkında hale getirildi (web'de Twilio'ya gitmiyor). Settings'te embed kodu + tema/karşılama mesajı ayarı. Canlı test edildi: yanlış origin 403, doğru origin çalışıyor, otomasyon tetiklendi ve widget pollinginde göründü, başka ziyaretçinin konuşmasına erişim 404, rate limit eşzamanlı yükte doğrulandı. Kapsam dışı: CAPTCHA (ek dış servis gerektirir), dosya yükleme. |
-| 6 | AI cevap önerisi | `DEMO_ONLY` | Anthropic/OpenAI SDK kurulu değil, LLM çağıran route yok. Önerilen yanıt metinleri `lib/demo/data.ts`'te sabit string. "Gönder / Devret / Düzenle" butonlarının `onClick`'i yok. |
+| 6 | AI cevap önerisi | `PARTIAL` | Faz 16: Anthropic + OpenAI SDK kurulu, sağlayıcı-bağımsız katman (`lib/ai/provider.ts`), bilgi tabanı FTS retrieval, hassas veri filtresi (7 unit test), `ai_reply_drafts`/`ai_usage_events`'e gerçek kayıt, Conversations'ta gerçek "AI önerisi oluştur" paneli. DB/RLS seviyesinde canlı doğrulandı. `PARTIAL` nedeni: `.env.local`'de henüz gerçek bir Anthropic/OpenAI anahtarı yok — gerçek bir taslak üretme çağrısı henüz canlı test edilmedi. Not: pazarlama sayfasındaki etkileşimli demo (`lib/demo/data.ts`) hâlâ ayrı ve kasıtlı olarak sahte — gerçek panele hiç bağlanmıyor, gerçek panel bu satırda anlatılan. |
 | 7 | Bilgi tabanı | `PARTIAL` | Gerçek CRUD (`lib/actions/knowledge.ts`): makale oluştur/düzenle/yayınla/arşivle/sil, gerçek arama (`?q=`, kategori filtresi), yayında paragraf bazlı chunk'lama → `knowledge_chunks` (FTS indeksi Faz 1'den hazır). Canlı RLS testiyle doğrulandı (agent+ yazabiliyor, viewer engelleniyor). `PARTIAL` nedeni: yalnızca elle metin girişi var — URL/PDF/DOCX/CSV içe aktarma henüz yok (spec'in kendi sıralamasında sonraki adımlar), ve retrieval (AI'ın bu chunk'ları gerçekten kullanması) Faz 5'e ait. |
 | 8 | Otomasyonlar | `PRODUCTION_READY` | Gerçek kural motoru (`lib/automations/engine.ts`): anahtar kelime ve mesai-dışı tetikleyicileri, her gelen WhatsApp mesajında değerlendiriliyor, eşleşince gerçek Twilio yanıtı gönderiyor. Her çalışma `automation_runs`'a yazılıyor, aynı mesaj için aynı kural iki kez çalışmıyor (unique constraint). Rol bazlı UI (agent/viewer sadece görür, admin+ oluşturur/değiştirir/siler). Canlı test edildi: gerçek webhook → kural eşleşti → Twilio'ya gitti → hem `automation_runs` hem mesaj kaydı doğru "failed" + hata sebebiyle işaretlendi (test numarası sandbox'a kayıtlı olmadığı için beklenen hata), duplicate webhook ikinci çalıştırma oluşturmadı. Kapsam: yalnızca spec'in "güvenli MVP" listesindeki kural türleri (anahtar kelime, mesai dışı) — karmaşık koşul oluşturucu veya tam otomatik AI gönderimi yok (henüz AI yok). |
 | 9 | Dashboard/KPI | `PARTIAL` | Gerçek metrikler (`lib/db/metrics.ts`, formüller `docs/metrics.md`): açık/bekleyen/bugün-çözülen sayıları, ort. ilk yanıt süresi, 7 günlük yanıt süresi trendi, önceliğe göre kuyruk, kanal dağılımı, ekip performansı — hepsi canlı sorgulanıyor. Canlı testte doğrulandı (bilinen zaman damgalarıyla test verisi, kullanıcı ekranda doğru sayıları gördü). `PARTIAL` nedeni: CSAT (anket özelliği yok), intent kırılımı/AI çözüm oranı (Faz 5 bekliyor) ve SLA % (hiçbir orgda `sla_policies` kaydı yok, oluşturacak UI da yok) kasıtlı olarak eklenmedi — sahte göstermek yerine çıkarıldı. |
@@ -142,7 +188,8 @@ yansıtır. `@anthropic-ai/sdk`, `stripe`, `@sentry/*` hâlâ kurulu değil.
 
 Faz 5 (AI cevap üretimi) için:
 
-- Anthropic API anahtarı (henüz alınmadıysa şimdi lazım olacak).
+- Anthropic veya OpenAI API anahtarından biri (Faz 16 kodu ikisini de
+  destekliyor, hangisi verilirse o kullanılır — henüz hiçbiri girilmedi).
 - Faz 10 için ödeme sağlayıcısı kararı: Stripe mi, yoksa Türkiye için iyzico/PayTR mi.
 - Instagram bağlama ekranının gerçekten çalışması için: Meta Developer App
   oluşturulup `META_APP_ID`/`META_APP_SECRET`/`META_VERIFY_TOKEN` girilmeli,
@@ -247,17 +294,19 @@ Faz 5 (AI cevap üretimi) için:
   (Supabase altyapı seviyesinde hallediyor), durum sayfası bu pass'te
   yapılmadı.
 
-## Kalan fazlar — kullanıcı kararı/hesabı gerekiyor
+## Kalan işler — kullanıcı kararı/hesabı gerekiyor
 
-Aşağıdakiler dış hesap veya kullanıcı kararı olmadan ilerletilemez,
-bu yüzden bilerek yapılmadı (tahmin yürütülmedi):
+Aşağıdakilerin kodu ya tamam ya da net bir sıradaki adımı var, ama dış
+hesap/anahtar/karar olmadan uçtan uca canlı test edilip bitirilemez —
+bilerek tahmin yürütülmedi:
 
-- **Faz 5** (AI cevap üretimi) — Anthropic API anahtarı gerekiyor.
-- **Faz 8.1** (Instagram) — Meta Developer App + Instagram Business
-  hesabı gerekiyor (Twilio gibi ücretsiz sandbox'ı yok).
-- **Faz 10** (abonelik/faturalandırma) — ödeme sağlayıcısı kararı
-  (Stripe mi, Türkiye için iyzico/PayTR mi) + o sağlayıcıda hesap.
-- **Faz 13'ün geri kalanı** — Sentry (veya benzeri) hesabı.
-- **Faz 14** (production deployment) — Vercel (veya seçilecek
-  platform) hesabı, custom domain, gerçek webhook URL'leri.
-- **Faz 15** (pilot müşteri) — gerçek pilot işletmeler.
+- **AI cevap taslağı** (Faz 16, kod tamam) — Anthropic veya OpenAI API
+  anahtarı gerekiyor, gerçek üretim testi bekliyor.
+- **Instagram** (Faz 15, kod tamam) — Meta Developer App + App Review
+  onayı gerekiyor (Twilio gibi ücretsiz sandbox'ı yok).
+- **Abonelik/faturalandırma** — ödeme sağlayıcısı kararı (Stripe mi,
+  Türkiye için iyzico/PayTR mi) + o sağlayıcıda hesap; hiç kod yazılmadı.
+- Sentry (veya benzeri) hata izleme hesabı.
+- Production deployment — Vercel (veya seçilecek platform) hesabı,
+  custom domain, gerçek webhook URL'leri.
+- Gerçek pilot müşteriler.

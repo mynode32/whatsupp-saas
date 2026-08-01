@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useActionState } from "react";
-import { Send, MessageCircle, Loader2, Trash2 } from "lucide-react";
+import { Send, MessageCircle, Loader2, Trash2, Sparkles } from "lucide-react";
 import { useLang } from "@/components/i18n/language-provider";
 import { sendMessageAction } from "@/lib/actions/messages";
 import { updateConversationStatusAction, assignConversationAction, markConversationReadAction } from "@/lib/actions/conversations";
 import { addConversationNoteAction } from "@/lib/actions/notes";
 import { deleteContactAction } from "@/lib/actions/contacts";
+import { generateSuggestedReplyAction, reviewAiDraftAction, type AiSuggestionResult } from "@/lib/actions/ai";
 import { cn } from "@/lib/utils";
 import type { ConversationListItem } from "@/lib/db/conversations";
 import type { TeamMember } from "@/lib/db/team";
@@ -34,6 +35,11 @@ const M = {
     notesEmpty: "Henüz iç not yok.", notePlaceholder: "Ekibe not bırak (müşteri görmez)…", addNote: "Ekle",
     deleteContact: "Kişi verisini sil (KVKK)",
     deleteContactConfirm: "Bu kişinin tüm mesaj geçmişi kalıcı olarak silinecek. Emin misin?",
+    aiSuggest: "AI önerisi oluştur", aiLoading: "Taslak hazırlanıyor…",
+    aiUse: "Kullan", aiDismiss: "Yoksay", aiGroundedIn: "Kaynak",
+    aiSensitive: "Bu mesaj hassas veri (kart/IBAN/kimlik no) içerebilir — AI önerisi oluşturulmadı, lütfen kendin yanıtla.",
+    aiNoGrounding: "Bilgi tabanında bu soruyla ilgili bir şey bulamadım. Bir madde ekleyip tekrar dene.",
+    aiNotConfigured: "AI henüz yapılandırılmamış (Ayarlar'a bir Anthropic ya da OpenAI anahtarı ekle).",
   },
   en: {
     title: "Conversations", sub: "Every WhatsApp message, in one inbox.",
@@ -47,6 +53,11 @@ const M = {
     notesEmpty: "No internal notes yet.", notePlaceholder: "Leave a note for your team (customer won't see it)…", addNote: "Add",
     deleteContact: "Delete contact data (KVKK/GDPR)",
     deleteContactConfirm: "This will permanently delete this contact's entire message history. Are you sure?",
+    aiSuggest: "Generate AI suggestion", aiLoading: "Drafting…",
+    aiUse: "Use", aiDismiss: "Dismiss", aiGroundedIn: "Grounded in",
+    aiSensitive: "This message may contain sensitive data (card/IBAN/ID number) — no AI suggestion was generated, please reply yourself.",
+    aiNoGrounding: "Nothing in the knowledge base matches this question. Add an article and try again.",
+    aiNotConfigured: "AI isn't configured yet (add an Anthropic or OpenAI key in Settings).",
   },
 };
 
@@ -60,6 +71,7 @@ export function ConversationsClient({
   savedReplies,
   teamMembers,
   isAdmin,
+  canReply,
   activeId,
 }: {
   organizationId: string;
@@ -71,6 +83,7 @@ export function ConversationsClient({
   savedReplies: SavedReply[];
   teamMembers: TeamMember[];
   isAdmin: boolean;
+  canReply: boolean;
   activeId?: string;
 }) {
   const { lang } = useLang();
@@ -80,9 +93,45 @@ export function ConversationsClient({
   const [noteState, noteAction, notePending] = useActionState(addConversationNoteAction, initialState);
   const [messageState, messageAction, messagePending] = useActionState(sendMessageAction, initialState);
 
+  const [aiResult, setAiResult] = useState<AiSuggestionResult | null>(null);
+  const [aiPending, startAiTransition] = useTransition();
+  const [activeDraft, setActiveDraft] = useState<{ id: string; text: string } | null>(null);
+
   useEffect(() => {
     if (activeId) void markConversationReadAction(activeId);
+    // Switching conversations must clear the previous thread's AI draft —
+    // it's ephemeral UI state tied to the old selection, not derivable
+    // from props during render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAiResult(null);
+    setActiveDraft(null);
   }, [activeId]);
+
+  useEffect(() => {
+    // A successful send means whatever draft was in the composer already
+    // went out — clear it so a new keystroke doesn't silently reuse it.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (messageState.success) setActiveDraft(null);
+  }, [messageState.success]);
+
+  function handleGenerateSuggestion() {
+    if (!selected) return;
+    startAiTransition(async () => {
+      const result = await generateSuggestedReplyAction(selected.id);
+      setAiResult(result);
+    });
+  }
+
+  function handleUseSuggestion(draftId: string, text: string) {
+    setActiveDraft({ id: draftId, text });
+    if (composerRef.current) composerRef.current.value = text;
+    setAiResult(null);
+  }
+
+  function handleDismissSuggestion(draftId: string) {
+    void reviewAiDraftAction({ draftId, status: "rejected" });
+    setAiResult(null);
+  }
 
   const counts = {
     all: conversations.length,
@@ -246,6 +295,49 @@ export function ConversationsClient({
                 </div>
 
                 <div className="space-y-2 p-5 pt-0">
+                  {canReply && (
+                    <div className="space-y-2">
+                      {aiResult?.status === "ok" ? (
+                        <div className="space-y-2 rounded-xl border border-primary/30 bg-primary/[0.04] p-3">
+                          <p className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                            <Sparkles className="h-3.5 w-3.5" /> {m.aiGroundedIn}: {aiResult.citations.map((c) => c.title).join(", ")}
+                          </p>
+                          <p className="text-sm leading-relaxed">{aiResult.text}</p>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleUseSuggestion(aiResult.draftId, aiResult.text)}
+                              className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground cursor-pointer"
+                            >
+                              {m.aiUse}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDismissSuggestion(aiResult.draftId)}
+                              className="rounded-full px-3 py-1 text-xs font-medium text-muted-foreground ring-1 ring-border hover:bg-muted cursor-pointer"
+                            >
+                              {m.aiDismiss}
+                            </button>
+                          </div>
+                        </div>
+                      ) : aiResult && aiResult.status !== "error" ? (
+                        <p className="rounded-xl bg-muted px-3 py-2 text-xs text-muted-foreground">
+                          {aiResult.status === "sensitive_data" ? m.aiSensitive : aiResult.status === "no_grounding" ? m.aiNoGrounding : m.aiNotConfigured}
+                        </p>
+                      ) : aiResult?.status === "error" ? (
+                        <p className="rounded-xl bg-destructive/10 px-3 py-2 text-xs text-destructive">{aiResult.message}</p>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={handleGenerateSuggestion}
+                        disabled={aiPending}
+                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-primary ring-1 ring-primary/30 hover:bg-primary/5 cursor-pointer disabled:opacity-50"
+                      >
+                        {aiPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                        {aiPending ? m.aiLoading : m.aiSuggest}
+                      </button>
+                    </div>
+                  )}
                   {savedReplies.length > 0 && (
                     <select
                       defaultValue=""
@@ -267,6 +359,8 @@ export function ConversationsClient({
                     className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2"
                   >
                     <input type="hidden" name="conversationId" value={selected.id} />
+                    {activeDraft && <input type="hidden" name="draftId" value={activeDraft.id} />}
+                    {activeDraft && <input type="hidden" name="draftText" value={activeDraft.text} />}
                     <input ref={composerRef} name="body" className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" placeholder={m.placeholder} required />
                     <button type="submit" disabled={messagePending} aria-label={m.send} className="text-muted-foreground hover:text-primary cursor-pointer disabled:opacity-50">
                       {messagePending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

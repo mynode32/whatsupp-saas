@@ -89,6 +89,7 @@ export const appConfig: AppConfig = {
 
   integrations: [
     { key: "anthropic", name: "Anthropic (Claude)", envVars: ["ANTHROPIC_API_KEY"], required: false, docsUrl: "https://console.anthropic.com/settings/keys", purpose: "Drafts knowledge-grounded replies in your brand voice for every message." },
+    { key: "openai", name: "OpenAI (GPT)", envVars: ["OPENAI_API_KEY"], required: false, docsUrl: "https://platform.openai.com/api-keys", purpose: "Alternative to Anthropic for drafting knowledge-grounded replies — set either, not both." },
     { key: "twilio", name: "WhatsApp (Twilio)", envVars: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"], required: false, docsUrl: "https://www.twilio.com/console", purpose: "Connects your WhatsApp Business number to send and receive messages." },
     { key: "meta", name: "Instagram (Meta)", envVars: ["META_APP_ID", "META_APP_SECRET", "META_VERIFY_TOKEN"], required: false, docsUrl: "https://developers.facebook.com/apps", purpose: "Receives Instagram Direct messages in the unified inbox; customer OAuth activation follows Meta app approval." },
     { key: "supabase", name: "Supabase", envVars: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"], required: false, docsUrl: "https://supabase.com/dashboard/project/_/settings/api", purpose: "Stores conversations, knowledge and automations. Without it, runs in demo mode." },

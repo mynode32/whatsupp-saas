@@ -24,6 +24,7 @@ export default async function ConversationsPage({
     .limit(1)
     .maybeSingle();
   const isAdmin = membership?.role === "owner" || membership?.role === "admin";
+  const canReply = Boolean(membership) && membership?.role !== "viewer";
 
   const [conversations, savedReplies, teamMembers] = membership
     ? await Promise.all([
@@ -49,6 +50,7 @@ export default async function ConversationsPage({
       savedReplies={savedReplies}
       teamMembers={teamMembers}
       isAdmin={isAdmin}
+      canReply={canReply}
       activeId={activeId}
     />
   );

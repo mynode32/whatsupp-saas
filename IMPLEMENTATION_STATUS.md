@@ -108,3 +108,13 @@ Faz 5 (AI cevap üretimi) için:
   doğrulandı. SLA-riski/düşük-güven bildirimleri, e-posta bildirimleri,
   bildirim tercihleri/sessiz saatler ve agent çevrimiçi durumu kasıtlı
   olarak eklenmedi (altyapıları yok — sahte göstermek yerine atlandı).
+- **Faz 11** — Tamamlandı: Next.js 16.2.5→16.2.12 güvenlik yaması
+  (middleware bypass, SSRF, DoS CVE'leri; kalan 2 npm audit bulgusu
+  Next'in kendi iç bağımlılığı, "düzeltmesi" Next'i 9'a düşürmek
+  olduğu için bilerek uygulanmadı). Security header'lar + CSP. Rate
+  limit auth ve mesaj göndermeye genişletildi. Audit log üye/kanal/
+  otomasyon değişikliklerine genişletildi. KVKK/GDPR "unutulma hakkı":
+  kişi silme (admin+, Conversations'ta) ve organizasyon kapatma
+  (owner-only, isim onaylı, Settings'te) — ikisi de gerçek FK cascade
+  ile çalışıyor, canlı test edildi. Taslak /privacy, /terms, /kvkk
+  sayfaları (avukat incelemesi gerektiği açıkça belirtilmiş).

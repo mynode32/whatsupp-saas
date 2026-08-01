@@ -3,7 +3,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ───────────────────────────────────────────────────────────────────────────
-   YANITLA — calm, trustworthy AI support assistant. Default theme is LIGHT
+   MYNODE — calm, trustworthy AI support assistant. Default theme is LIGHT
    (set in layout.tsx). Crisp indigo ink on a faint sky-tinted paper, a soft
    sky secondary, geometric sans + mono numerals. The whole palette pivots on
    the brand hue ≈ 258 (indigo) with a sky accent ≈ 232.
@@ -16,7 +16,7 @@
   --radius-xs: 0.5rem; --radius-sm: 0.625rem; --radius-md: 0.875rem;
   --radius-lg: 1.125rem; --radius-xl: 1.5rem; --radius-2xl: 2rem; --radius-3xl: 2.25rem;
 
-  /* LIGHT — the primary Yanıtla look. Faint sky-tinted paper, indigo ink. */
+  /* LIGHT — the primary mynode look. Faint sky-tinted paper, indigo ink. */
   --color-background: oklch(98.8% 0.006 258);
   --color-foreground: oklch(24% 0.04 264);
   --color-muted: oklch(96.4% 0.01 252);

@@ -50,6 +50,7 @@ const content = {
       { icon: "building-2", t: "Ajans & çok-müşteri", b: "Her müşteri için ayrı bilgi tabanı ve marka tonu; tek panelden yönet." },
     ],
     proofKicker: "Sonuç",
+    proofNote: "*Örnek/gösterim amaçlı rakamlar — henüz gerçek müşteri verisi yoktur.",
     proof: [{ big: "12 sn", l: "ortalama ilk yanıt", c: "AI taslak hazır geldiği için" }, { big: "%68", l: "AI ile otomatik çözüm", c: "İnsan gerekmeden kapanan" }, { big: "3.1×", l: "daha fazla konuşma / kişi", c: "Aynı ekiple" }],
     quote: "“Akşamları gelen WhatsApp mesajları sabaha kalmıyordu artık. mynode çoğunu kendi kapatıyor, ekibim sadece gerçekten önemli olanlara bakıyor.”",
     quoteName: "Selin Ö.", quoteRole: "Kurucu · butik moda markası",
@@ -137,6 +138,7 @@ const content = {
     /* Expanded testimonials */
     wallKicker: "Müşteri sözü",
     wallH: ["Bekletmeyi bıraktılar.", "Sayılar konuşuyor."],
+    wallNote: "Örnek/gösterim amaçlı veridir — henüz gerçek müşteri referansı değildir.",
     wall: [
       { quote: "Akşam gelen WhatsApp mesajları artık sabaha kalmıyor. mynode çoğunu kendi kapatıyor, ekibim sadece önemli olanlara bakıyor.", name: "Selin Ö.", role: "Kurucu · butik moda", initials: "SÖ", hue: 258, metric: "12 sn", metricL: "ort. ilk yanıt" },
       { quote: "İlk yanıt süremiz saatlerden saniyelere indi. Müşteri memnuniyeti puanımız iki ayda 4.2'den 4.8'e çıktı.", name: "Mert A.", role: "Operasyon · e-ticaret", initials: "MA", hue: 232, metric: "%94", metricL: "çözüm oranı" },
@@ -187,6 +189,7 @@ const content = {
       { icon: "building-2", t: "Agencies & multi-client", b: "A separate knowledge base and brand voice per client; run it all from one panel." },
     ],
     proofKicker: "The result",
+    proofNote: "*Illustrative example figures — no real customer data yet.",
     proof: [{ big: "12 sec", l: "average first response", c: "Because the AI draft is ready" }, { big: "68%", l: "deflected by AI", c: "Closed with no human" }, { big: "3.1×", l: "more chats per agent", c: "With the same team" }],
     quote: "“Evening WhatsApp messages no longer pile up until morning. mynode closes most of them itself, and my team only handles what really matters.”",
     quoteName: "Selin Ö.", quoteRole: "Founder · boutique fashion brand",
@@ -274,6 +277,7 @@ const content = {
     /* Expanded testimonials */
     wallKicker: "Customer voice",
     wallH: ["They stopped making people wait.", "The numbers speak."],
+    wallNote: "Illustrative example data — not yet real customer testimonials.",
     wall: [
       { quote: "Evening WhatsApp messages no longer pile up until morning. mynode closes most of them itself, and my team only handles what matters.", name: "Selin Ö.", role: "Founder · boutique fashion", initials: "SÖ", hue: 258, metric: "12 sec", metricL: "avg first response" },
       { quote: "Our first-response time went from hours to seconds. Our CSAT climbed from 4.2 to 4.8 in two months.", name: "Mert A.", role: "Operations · e-commerce", initials: "MA", hue: 232, metric: "94%", metricL: "resolution rate" },
@@ -722,7 +726,7 @@ export default function YanitlaLanding() {
       {/* TESTIMONIAL WALL — expanded */}
       <section className="py-20 lg:py-28">
         <div className="mx-auto max-w-6xl px-5 lg:px-8">
-          <div className="max-w-2xl"><p className="label-mono inline-flex items-center gap-2 text-primary"><Quote className="h-3.5 w-3.5" /> {c.wallKicker}</p><h2 className="mt-4 font-display text-[clamp(28px,4vw,48px)] font-bold leading-[1.04] tracking-tight">{c.wallH[0]} <span className="text-primary">{c.wallH[1]}</span></h2></div>
+          <div className="max-w-2xl"><p className="label-mono inline-flex items-center gap-2 text-primary"><Quote className="h-3.5 w-3.5" /> {c.wallKicker}</p><h2 className="mt-4 font-display text-[clamp(28px,4vw,48px)] font-bold leading-[1.04] tracking-tight">{c.wallH[0]} <span className="text-primary">{c.wallH[1]}</span></h2><p className="mt-3 text-xs text-muted-foreground">{c.wallNote}</p></div>
           <div className="mt-10 grid gap-3 sm:grid-cols-2">
             {c.wall.map((w) => (
               <figure key={w.name} className="flex flex-col rounded-3xl border border-border bg-card p-7 shadow-soft transition-all hover:-translate-y-1 hover:shadow-pop">
@@ -744,6 +748,7 @@ export default function YanitlaLanding() {
         <div className="mx-auto grid max-w-6xl gap-10 px-5 md:grid-cols-3 lg:px-8">
           {c.proof.map((p) => <div key={p.l}><p className="font-display text-[60px] font-bold leading-none tnum text-primary">{p.big}</p><p className="mt-2 text-sm font-medium">{p.l}</p><p className="mt-1 text-xs text-muted-foreground">{p.c}</p></div>)}
         </div>
+        <p className="mx-auto mt-8 max-w-6xl px-5 text-xs text-muted-foreground lg:px-8">{c.proofNote}</p>
       </section>
 
       {/* TRUST — inverted dark act */}

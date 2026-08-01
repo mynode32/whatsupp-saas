@@ -3,11 +3,12 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useActionState } from "react";
-import { Send, MessageCircle, Loader2 } from "lucide-react";
+import { Send, MessageCircle, Loader2, Trash2 } from "lucide-react";
 import { useLang } from "@/components/i18n/language-provider";
 import { sendMessageAction } from "@/lib/actions/messages";
 import { updateConversationStatusAction, assignConversationAction } from "@/lib/actions/conversations";
 import { addConversationNoteAction } from "@/lib/actions/notes";
+import { deleteContactAction } from "@/lib/actions/contacts";
 import { cn } from "@/lib/utils";
 import type { ConversationListItem } from "@/lib/db/conversations";
 import type { TeamMember } from "@/lib/db/team";
@@ -31,6 +32,8 @@ const M = {
     unassigned: "Atanmamış", assignTo: "Ata", quickReply: "Hazır yanıt seç…",
     tabMessages: "Mesajlar", tabNotes: "İç notlar",
     notesEmpty: "Henüz iç not yok.", notePlaceholder: "Ekibe not bırak (müşteri görmez)…", addNote: "Ekle",
+    deleteContact: "Kişi verisini sil (KVKK)",
+    deleteContactConfirm: "Bu kişinin tüm mesaj geçmişi kalıcı olarak silinecek. Emin misin?",
   },
   en: {
     title: "Conversations", sub: "Every WhatsApp message, in one inbox.",
@@ -42,6 +45,8 @@ const M = {
     unassigned: "Unassigned", assignTo: "Assign", quickReply: "Pick a saved reply…",
     tabMessages: "Messages", tabNotes: "Internal notes",
     notesEmpty: "No internal notes yet.", notePlaceholder: "Leave a note for your team (customer won't see it)…", addNote: "Add",
+    deleteContact: "Delete contact data (KVKK/GDPR)",
+    deleteContactConfirm: "This will permanently delete this contact's entire message history. Are you sure?",
   },
 };
 
@@ -54,16 +59,18 @@ export function ConversationsClient({
   notes,
   savedReplies,
   teamMembers,
+  isAdmin,
   activeId,
 }: {
   organizationId: string;
   conversations: ConversationListItem[];
   statusFilter?: "open" | "pending" | "resolved";
-  selected: { id: string; status: "open" | "pending" | "resolved"; contactName: string; assignedTo: string | null } | null;
+  selected: { id: string; status: "open" | "pending" | "resolved"; contactId: string; contactName: string; assignedTo: string | null } | null;
   messages: Message[];
   notes: Note[];
   savedReplies: SavedReply[];
   teamMembers: TeamMember[];
+  isAdmin: boolean;
   activeId?: string;
 }) {
   const { lang } = useLang();
@@ -180,6 +187,21 @@ export function ConversationsClient({
                     {selected.status === "resolved" ? m.reopen : m.markResolved}
                   </button>
                 </form>
+                {isAdmin && (
+                  <form
+                    action={async (formData: FormData) => {
+                      await deleteContactAction(formData);
+                    }}
+                    onSubmit={(e) => {
+                      if (!confirm(m.deleteContactConfirm)) e.preventDefault();
+                    }}
+                  >
+                    <input type="hidden" name="contactId" value={selected.contactId} />
+                    <button type="submit" aria-label={m.deleteContact} title={m.deleteContact} className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive cursor-pointer">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </form>
+                )}
               </div>
             </div>
 

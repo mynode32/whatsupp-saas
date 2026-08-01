@@ -19,10 +19,11 @@ export default async function ConversationsPage({
   } = await supabase.auth.getUser();
   const { data: membership } = await supabase
     .from("organization_members")
-    .select("organization_id")
+    .select("organization_id, role")
     .eq("user_id", user!.id)
     .limit(1)
     .maybeSingle();
+  const isAdmin = membership?.role === "owner" || membership?.role === "admin";
 
   const [conversations, savedReplies, teamMembers] = membership
     ? await Promise.all([
@@ -47,6 +48,7 @@ export default async function ConversationsPage({
       notes={notes}
       savedReplies={savedReplies}
       teamMembers={teamMembers}
+      isAdmin={isAdmin}
       activeId={activeId}
     />
   );

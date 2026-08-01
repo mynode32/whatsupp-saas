@@ -4,6 +4,7 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { logAuditEvent } from "@/lib/audit/log";
 import type { AuthActionState } from "@/lib/actions/auth";
 
 const onboardingSchema = z.object({
@@ -127,6 +128,10 @@ export async function updateOrganizationBrandAction(
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { error } = await supabase
     .from("organizations")
     .update({
@@ -140,6 +145,70 @@ export async function updateOrganizationBrandAction(
     .eq("id", parsed.data.organizationId);
   if (error) return { error: error.message };
 
+  await logAuditEvent({
+    organizationId: parsed.data.organizationId,
+    actorId: user?.id ?? null,
+    action: "update_organization_settings",
+    targetType: "organization",
+    targetId: parsed.data.organizationId,
+  });
+
   revalidatePath("/settings");
   return { success: true };
+}
+
+const deleteOrgSchema = z.object({ organizationId: z.uuid(), confirmName: z.string() });
+
+/**
+ * Closes the organization for good — deletes the organizations row,
+ * which cascades (ON DELETE CASCADE, Faz 1 schema) through every
+ * tenant table: members, conversations, messages, contacts, knowledge
+ * base, automations, everything. Owner-only. The last-owner-removal
+ * trigger (0012) was specifically fixed to allow this.
+ */
+export async function deleteOrganizationAction(
+  _prev: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
+  const parsed = deleteOrgSchema.safeParse({
+    organizationId: formData.get("organizationId"),
+    confirmName: formData.get("confirmName"),
+  });
+  if (!parsed.success) return { error: "Invalid input" };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in" };
+
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("name")
+    .eq("id", parsed.data.organizationId)
+    .maybeSingle();
+  if (!org) return { error: "Organization not found" };
+  if (parsed.data.confirmName.trim() !== org.name) {
+    return { error: "Name doesn't match — type the organization name exactly to confirm." };
+  }
+
+  // Note: this audit_logs row is scoped to organization_id ON DELETE
+  // CASCADE like every other tenant table, so it's destroyed along
+  // with the org a moment later — it doesn't outlive the deletion it
+  // describes. A durable "org was deleted" trail needs a separate,
+  // non-cascading log (not built this pass).
+  await logAuditEvent({
+    organizationId: parsed.data.organizationId,
+    actorId: user.id,
+    action: "delete_organization",
+    targetType: "organization",
+    targetId: parsed.data.organizationId,
+    metadata: { name: org.name },
+  });
+
+  const { error } = await supabase.from("organizations").delete().eq("id", parsed.data.organizationId);
+  if (error) return { error: error.message };
+
+  await supabase.auth.signOut();
+  redirect("/login");
 }

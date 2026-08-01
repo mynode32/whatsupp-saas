@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Icon } from "@/components/ui/icon";
 import { useLang } from "@/components/i18n/language-provider";
-import { updateOrganizationBrandAction } from "@/lib/actions/organizations";
+import { updateOrganizationBrandAction, deleteOrganizationAction } from "@/lib/actions/organizations";
 import { connectTwilioAction, createWebChannelAction } from "@/lib/actions/channels";
 import { createSavedReplyAction, deleteSavedReplyAction } from "@/lib/actions/saved-replies";
 import {
@@ -154,7 +154,40 @@ export function SettingsClient({
           ))}
         </CardContent>
       </Card>
+
+      {/* Danger zone */}
+      {organization && currentUserRole === "owner" && (
+        <DangerZoneCard organizationId={organization.id} organizationName={organization.name} />
+      )}
     </div>
+  );
+}
+
+function DangerZoneCard({ organizationId, organizationName }: { organizationId: string; organizationName: string }) {
+  const { ui } = useLang();
+  const [state, formAction, pending] = useActionState(deleteOrganizationAction, initialState);
+
+  return (
+    <Card className="border-destructive/30">
+      <CardHeader>
+        <CardTitle className="text-destructive">{ui.dangerZone}</CardTitle>
+        <p className="text-sm text-muted-foreground">{ui.dangerZoneHint}</p>
+      </CardHeader>
+      <CardContent>
+        <form action={formAction} className="space-y-3">
+          <input type="hidden" name="organizationId" value={organizationId} />
+          <div className="space-y-1.5">
+            <Label htmlFor="confirmName">{ui.confirmOrgName}: <span className="font-mono">{organizationName}</span></Label>
+            <Input id="confirmName" name="confirmName" required />
+          </div>
+          {state.error && <p className="text-sm text-destructive">{state.error}</p>}
+          <Button type="submit" variant="destructive" disabled={pending} className="gap-2">
+            {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+            {ui.deleteOrganization}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 

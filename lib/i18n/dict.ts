@@ -112,6 +112,12 @@ export const ui = {
     dataExport: "Veri dışa aktarma",
     dataExportHint: "Tüm konuşmaları CSV olarak indir.",
     exportConversations: "Konuşmaları indir (CSV)",
+    dangerZone: "Tehlikeli bölge",
+    dangerZoneHint: "Organizasyonu ve tüm verilerini kalıcı olarak sil. Bu işlem geri alınamaz.",
+    confirmOrgName: "Onaylamak için organizasyon adını yaz",
+    deleteOrganization: "Organizasyonu kalıcı olarak sil",
+    deleteContactData: "Kişi verisini sil (KVKK)",
+    deleteContactConfirm: "Bu kişinin tüm mesaj geçmişi kalıcı olarak silinecek. Emin misin?",
   },
   en: {
     features: "Features",
@@ -216,6 +222,12 @@ export const ui = {
     dataExport: "Data export",
     dataExportHint: "Download all conversations as CSV.",
     exportConversations: "Download conversations (CSV)",
+    dangerZone: "Danger zone",
+    dangerZoneHint: "Permanently delete this organization and all its data. This can't be undone.",
+    confirmOrgName: "Type the organization name to confirm",
+    deleteOrganization: "Permanently delete organization",
+    deleteContactData: "Delete contact data (KVKK/GDPR)",
+    deleteContactConfirm: "This will permanently delete this contact's entire message history. Are you sure?",
   },
 } satisfies Record<Lang, Record<string, string>>;
 

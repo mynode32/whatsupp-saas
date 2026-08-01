@@ -828,7 +828,7 @@ export default function YanitlaLanding() {
             <div><p className="label-mono mb-3">{c.footProduct}</p><ul className="space-y-1.5">{c.footProductLinks.map((l) => <li key={l}><a href="#what" className="hover:text-foreground">{l}</a></li>)}</ul></div>
             <div><p className="label-mono mb-3">{c.footCompany}</p><ul className="space-y-1.5">{c.footCompanyLinks.map((l) => <li key={l}><a href="#" className="hover:text-foreground">{l}</a></li>)}</ul></div>
             <div><p className="label-mono mb-3">{c.footResources}</p><ul className="space-y-1.5">{c.footResourceLinks.map((l) => <li key={l}><a href="#" className="hover:text-foreground">{l}</a></li>)}</ul></div>
-            <div><p className="label-mono mb-3">{c.footLegal}</p><ul className="space-y-1.5">{c.footLegalLinks.map((l) => <li key={l}><a href="#" className="hover:text-foreground">{l}</a></li>)}</ul></div>
+            <div><p className="label-mono mb-3">{c.footLegal}</p><ul className="space-y-1.5">{c.footLegalLinks.map((l, i) => <li key={l}><Link href={["/terms", "/privacy", "/kvkk", "#"][i] ?? "#"} className="hover:text-foreground">{l}</Link></li>)}</ul></div>
           </div>
           <div className="mt-12 flex flex-col items-start justify-between gap-3 border-t border-border pt-6 text-[12px] text-muted-foreground md:flex-row md:items-center">
             <p>hello@{appConfig.domain} · © 2026 {appConfig.name}.</p>

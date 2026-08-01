@@ -7,7 +7,12 @@ import { SettingsClient } from "@/components/app/settings-client";
 import { publicEnv } from "@/lib/env";
 import { integrationStatus } from "@/lib/env.server";
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ instagram_error?: string; instagram?: string }>;
+}) {
+  const { instagram_error: instagramError, instagram: instagramStatus } = await searchParams;
   const connected: Record<string, boolean> = { ...integrationStatus };
 
   const supabase = await createClient();
@@ -47,6 +52,8 @@ export default async function SettingsPage() {
       currentUserId={user!.id}
       currentUserRole={membership?.role ?? "viewer"}
       appUrl={publicEnv.NEXT_PUBLIC_APP_URL}
+      instagramError={instagramError ?? null}
+      instagramConnected={instagramStatus === "connected"}
     />
   );
 }

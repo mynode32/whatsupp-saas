@@ -74,6 +74,42 @@ müşterinin kendi Twilio hesabını/numarasını bağlayabilmesi gerekiyordu.
 - Kapsam dışı: Embedded Signup / tek-tık bağlama (Twilio ISV onayı gerektirir,
   kod değil iş süreci) — bkz. sıradaki fazlar.
 
+## Faz 15 — Instagram OAuth bağlama ekranı (kod tamam, canlı OAuth turu bekliyor)
+
+Instagram DM'lerini almak için gereken inbound webhook (Faz 13.5) zaten
+hazırdı; eksik olan, müşterinin kendi Instagram Business hesabını bağlayacağı
+gerçek bir ekrandı.
+
+- `0017_instagram_oauth.sql`: `channel_secrets` ile aynı desende yeni bir
+  `channel_instagram_credentials` tablosu (Meta Page access token'ı burada
+  saklanır) — RLS açık, `authenticated`/`anon` için hiç policy yok, yalnızca
+  servis-rolü erişebiliyor. Tenant-doğrulama trigger'ına bu tablo için de
+  bir dal eklendi.
+- `app/api/integrations/instagram/connect`: admin/owner rolü zorunlu, rastgele
+  bir nonce'u hem `state` parametresinde hem httpOnly cookie'de taşıyarak
+  standart OAuth CSRF korumasıyla Meta'nın OAuth ekranına yönlendiriyor.
+- `app/api/integrations/instagram/callback`: nonce'u doğruluyor, `code`'u
+  kullanıcı token'ına, onu da 60 günlük uzun ömürlü token'a çeviriyor
+  (`lib/meta/graph.ts`), kullanıcının yönettiği Sayfaları ve bunlara bağlı
+  Instagram Business hesaplarını buluyor. Tek sayfa varsa otomatik bağlanıp
+  Meta'ya "bu sayfanın mesajlarını webhook'umuza gönder" deniyor
+  (`subscribed_apps`); birden fazla sayfa varsa `/settings/instagram-pages`'te
+  seçim ekranı açılıyor — adaylar (Page access token'ları dahil) tarayıcıya
+  hiç gitmeden, yalnızca httpOnly bir cookie'de taşınıyor.
+- Settings'teki Instagram kartı artık gerçek: Meta yapılandırılmışsa
+  "Instagram'ı bağla" butonu, bağlıyken "bağlantıyı kaldır" butonu (WhatsApp
+  ile aynı genel `disconnectChannelAction`), OAuth hata/başarı banner'ı.
+- Canlı testle doğrulandı: `channel_instagram_credentials` kaydı organizasyon
+  sahibine bile RLS üzerinden görünmüyor, bir kimlik bilgisini başka bir
+  organizasyona bağlamaya çalışmak trigger tarafından reddedildi, eksik
+  `organizationId`/yapılandırılmamış Meta durumunda route'lar güvenli hata
+  sayfalarına yönlendiriyor.
+- **Eksik/bekleyen:** gerçek OAuth turu (Facebook giriş ekranı, Sayfa seçimi)
+  yalnızca gerçek bir tarayıcıda, gerçek bir Meta Developer App'iyle test
+  edilebilir — bu otomatik test edilemez. `.env.local`'de `META_APP_ID`/
+  `META_APP_SECRET`/`META_VERIFY_TOKEN` girilip Meta App Review onayı
+  geldikten sonra birlikte uçtan uca denenecek.
+
 **Durum tanımları:**
 - `DEMO_ONLY` — sadece statik/mock veri gösterir, gerçek backend çağrısı yok.
 - `PARTIAL` — bir miktar gerçek bağlantı var ama eksik/yarım.
@@ -90,7 +126,7 @@ yansıtır. `@anthropic-ai/sdk`, `stripe`, `@sentry/*` hâlâ kurulu değil.
 | 1 | Kimlik doğrulama | `PRODUCTION_READY` | Gerçek Supabase Auth: e-posta/şifre kayıt+doğrulama, giriş, şifremi unuttum/yenile, güvenli çıkış (`lib/actions/auth.ts`), `proxy.ts` ile route koruması + session yenileme. Demo bypass yalnızca `DEMO_MODE=true` + dev'de. Canlı testte doğrulandı. |
 | 2 | Organizasyon/ekip yapısı | `PRODUCTION_READY` | Onboarding (`app/onboarding`), davet/rol/kaldırma (`lib/actions/members.ts`, Settings'te rol bazlı UI), son-owner koruması DB trigger'ıyla. Canlı çapraz-organizasyon testiyle doğrulandı (bkz. Faz 2 geçmişi — bir RLS açığı bulunup düzeltildi). |
 | 3 | WhatsApp alma/gönderme | `PARTIAL` | Gerçek Twilio entegrasyonu, artık **her organizasyon kendi Twilio hesabını bağlıyor** (Faz 14, `lib/actions/channels.ts`, `channel_secrets` tablosu): imza doğrulamalı webhook (`app/api/webhooks/twilio`, org-bazlı auth token ile), idempotent mesaj/konuşma/kişi oluşturma, org-bazlı gönderme (`lib/actions/messages.ts`) + status callback. Canlı test edildi (bkz. Faz 3 ve Faz 14 geçmişi) — gerçek WhatsApp cihaz round-trip'i kullanıcının WhatsApp erişimi geri geldiğinde tamamlanacak. `PARTIAL` nedeni: template/24-saat penceresi UI'da gösterilmiyor, tek-tık Embedded Signup yok (müşteri kendi Twilio hesabında birkaç adım atmak zorunda). |
-| 4 | Instagram mesajları | `BLOCKED` | Kod yok. Meta Developer App + Instagram Business hesabı gerekiyor (Twilio gibi ücretsiz sandbox'ı yok) — kullanıcı henüz bu hesaplara sahip değil, tahmin yürütülmedi, açıkça soruldu ve ertelendi. |
+| 4 | Instagram mesajları | `PARTIAL` | İnbound webhook (imza doğrulamalı, idempotent, unified inbox — Faz 13.5) ve OAuth bağlama ekranı (Faz 15, `app/api/integrations/instagram/*`, `channel_instagram_credentials`) kod olarak tamam ve DB/route seviyesinde canlı test edildi. `PARTIAL` nedeni: gerçek bir Meta Developer App'i + App Review onayı olmadan hiçbir müşteri gerçekten bağlanamıyor — bu bir hesap/onay süreci, kod eksikliği değil. Outbound (agent'tan Instagram'a cevap gönderme) da bu onaydan sonra bağlanacak. |
 | 5 | Web chat | `PRODUCTION_READY` | Gerçek gömülebilir widget (`public/widget.js`, vanilla JS, XSS'e karşı yalnızca `textContent`) + public API (`app/api/widget/*`, service-role, origin allowlist, rate limit). Otomasyon motoru kanal-farkında hale getirildi (web'de Twilio'ya gitmiyor). Settings'te embed kodu + tema/karşılama mesajı ayarı. Canlı test edildi: yanlış origin 403, doğru origin çalışıyor, otomasyon tetiklendi ve widget pollinginde göründü, başka ziyaretçinin konuşmasına erişim 404, rate limit eşzamanlı yükte doğrulandı. Kapsam dışı: CAPTCHA (ek dış servis gerektirir), dosya yükleme. |
 | 6 | AI cevap önerisi | `DEMO_ONLY` | Anthropic/OpenAI SDK kurulu değil, LLM çağıran route yok. Önerilen yanıt metinleri `lib/demo/data.ts`'te sabit string. "Gönder / Devret / Düzenle" butonlarının `onClick`'i yok. |
 | 7 | Bilgi tabanı | `PARTIAL` | Gerçek CRUD (`lib/actions/knowledge.ts`): makale oluştur/düzenle/yayınla/arşivle/sil, gerçek arama (`?q=`, kategori filtresi), yayında paragraf bazlı chunk'lama → `knowledge_chunks` (FTS indeksi Faz 1'den hazır). Canlı RLS testiyle doğrulandı (agent+ yazabiliyor, viewer engelleniyor). `PARTIAL` nedeni: yalnızca elle metin girişi var — URL/PDF/DOCX/CSV içe aktarma henüz yok (spec'in kendi sıralamasında sonraki adımlar), ve retrieval (AI'ın bu chunk'ları gerçekten kullanması) Faz 5'e ait. |
@@ -108,7 +144,10 @@ Faz 5 (AI cevap üretimi) için:
 
 - Anthropic API anahtarı (henüz alınmadıysa şimdi lazım olacak).
 - Faz 10 için ödeme sağlayıcısı kararı: Stripe mi, yoksa Türkiye için iyzico/PayTR mi.
-- Meta/Instagram uygulaması (Faz 8'e kadar gerekmiyor, erken karar gerekmez).
+- Instagram bağlama ekranının gerçekten çalışması için: Meta Developer App
+  oluşturulup `META_APP_ID`/`META_APP_SECRET`/`META_VERIFY_TOKEN` girilmeli,
+  ardından `instagram_manage_messages` izni için App Review başvurusu
+  yapılmalı (ekran kaydı + gizlilik politikası linki gerekiyor).
 - Kullanıcının WhatsApp erişimi geri geldiğinde: gerçek cihaz round-trip
   testi (sandbox join + gerçek mesaj gönder/al) tamamlanmalı.
 

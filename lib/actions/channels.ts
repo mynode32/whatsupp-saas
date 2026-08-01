@@ -2,9 +2,12 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createTwilioClient } from "@/lib/twilio/client";
+import { connectInstagramCandidate, type MetaPageCandidate } from "@/lib/meta/connect";
 import { logAuditEvent } from "@/lib/audit/log";
 import type { AuthActionState } from "@/lib/actions/auth";
 import { normalizeAllowedOrigins } from "@/lib/widget/origins";
@@ -167,6 +170,7 @@ export async function disconnectChannelAction(
 
   const admin = createAdminClient();
   await admin.from("channel_secrets").delete().eq("channel_connection_id", parsed.data.channelConnectionId);
+  await admin.from("channel_instagram_credentials").delete().eq("channel_connection_id", parsed.data.channelConnectionId);
 
   await logAuditEvent({
     organizationId: parsed.data.organizationId,
@@ -178,6 +182,63 @@ export async function disconnectChannelAction(
 
   revalidatePath("/settings");
   return { success: true };
+}
+
+const finalizeInstagramSchema = z.object({ organizationId: z.uuid(), pageId: z.string().min(1) });
+
+/**
+ * Finishes an Instagram connection when the OAuth callback found more
+ * than one candidate Page and sent the user to the picker. The page
+ * access tokens for all candidates travel only in the httpOnly
+ * ig_oauth_candidates cookie set by that callback — never through the
+ * form/URL — so this just has to find the one the user picked.
+ */
+export async function finalizeInstagramConnectionAction(formData: FormData): Promise<void> {
+  const parsed = finalizeInstagramSchema.safeParse({
+    organizationId: formData.get("organizationId"),
+    pageId: formData.get("pageId"),
+  });
+  if (!parsed.success) redirect("/settings?instagram_error=invalid_request");
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("role")
+    .eq("organization_id", parsed.data.organizationId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!membership || (membership.role !== "owner" && membership.role !== "admin")) {
+    redirect("/settings?instagram_error=forbidden");
+  }
+
+  const cookieStore = await cookies();
+  const raw = cookieStore.get("ig_oauth_candidates")?.value;
+  if (!raw) redirect("/settings?instagram_error=expired");
+
+  let candidates: MetaPageCandidate[];
+  try {
+    candidates = JSON.parse(Buffer.from(raw, "base64").toString("utf-8"));
+  } catch {
+    redirect("/settings?instagram_error=expired");
+  }
+  const candidate = candidates.find((c) => c.pageId === parsed.data.pageId);
+  if (!candidate) redirect("/settings?instagram_error=expired");
+
+  try {
+    await connectInstagramCandidate(parsed.data.organizationId, user.id, candidate);
+  } catch (err) {
+    console.error("Instagram connection finalize failed", err);
+    redirect("/settings?instagram_error=exchange_failed");
+  }
+
+  cookieStore.delete("ig_oauth_candidates");
+  revalidatePath("/settings");
+  redirect("/settings?instagram=connected");
 }
 
 const webChannelSchema = z.object({

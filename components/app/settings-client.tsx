@@ -39,6 +39,8 @@ export function SettingsClient({
   currentUserId,
   currentUserRole,
   appUrl,
+  instagramError,
+  instagramConnected,
 }: {
   connected: Record<string, boolean>;
   organization: Organization | null;
@@ -49,6 +51,8 @@ export function SettingsClient({
   currentUserId: string;
   currentUserRole: OrgRole;
   appUrl: string;
+  instagramError: string | null;
+  instagramConnected: boolean;
 }) {
   const { t, ui, lang } = useLang();
   const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
@@ -110,7 +114,13 @@ export function SettingsClient({
               ))}
             </CardContent>
           </Card>
-          <ChannelsCard organizationId={organization.id} channels={channels} />
+          <ChannelsCard
+            organizationId={organization.id}
+            channels={channels}
+            metaConfigured={connected.meta}
+            instagramError={instagramError}
+            instagramConnected={instagramConnected}
+          />
           <WebChatCard organizationId={organization.id} channels={channels} appUrl={appUrl} />
         </>
       )}
@@ -288,13 +298,36 @@ function OrganizationCard({ organization, isAdmin }: { organization: Organizatio
   );
 }
 
-function ChannelsCard({ organizationId, channels }: { organizationId: string; channels: ChannelConnection[] }) {
+function ChannelsCard({
+  organizationId,
+  channels,
+  metaConfigured,
+  instagramError,
+  instagramConnected,
+}: {
+  organizationId: string;
+  channels: ChannelConnection[];
+  metaConfigured: boolean;
+  instagramError: string | null;
+  instagramConnected: boolean;
+}) {
   const { ui, lang } = useLang();
   const [connectState, connectAction, connectPending] = useActionState(connectTwilioAction, initialState);
   const [disconnectState, disconnectAction, disconnectPending] = useActionState(disconnectChannelAction, initialState);
   const whatsapp = channels.find((c) => c.channel_type === "whatsapp");
   const instagram = channels.find((c) => c.channel_type === "instagram");
   const whatsappConnected = whatsapp?.status === "connected";
+  const instagramMessages: Record<string, { tr: string; en: string }> = {
+    denied: { tr: "Instagram bağlantısı iptal edildi.", en: "Instagram connection was cancelled." },
+    no_pages: {
+      tr: "Bu Facebook hesabına bağlı, Instagram Business hesabı olan bir Sayfa bulunamadı.",
+      en: "No Facebook Page with a linked Instagram Business account was found.",
+    },
+  };
+  const instagramErrorText = instagramError
+    ? (instagramMessages[instagramError]?.[lang] ??
+      (lang === "tr" ? "Instagram bağlantısı başarısız oldu, tekrar dene." : "Instagram connection failed — try again."))
+    : null;
 
   return (
     <Card>
@@ -370,19 +403,55 @@ function ChannelsCard({ organizationId, channels }: { organizationId: string; ch
           )}
         </div>
 
-        <div className="flex items-center gap-4 rounded-lg border border-border p-4">
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-muted text-muted-foreground">
-            <Icon name="message-circle" className="h-5 w-5" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="font-medium">Instagram Direct (Meta)</p>
-            <p className="text-sm text-muted-foreground">
-              {instagram?.external_id ?? (lang === "tr" ? "Meta uygulama onayı ve OAuth bağlantısı bekleniyor" : "Waiting for Meta app approval and OAuth connection")}
-            </p>
+        <div className="space-y-3 rounded-lg border border-border p-4">
+          <div className="flex items-center gap-4">
+            <span className="grid h-10 w-10 place-items-center rounded-lg bg-muted text-muted-foreground">
+              <Icon name="message-circle" className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">Instagram Direct (Meta)</p>
+              <p className="truncate text-sm text-muted-foreground">
+                {instagram?.display_name ?? ui.notConnected}
+              </p>
+            </div>
+            {instagram?.status === "connected" ? (
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-success">
+                <CheckCircle2 className="h-4 w-4" /> {ui.connected}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+                <CircleDashed className="h-4 w-4" /> {ui.notConnected}
+              </span>
+            )}
           </div>
-          <span className={instagram?.status === "connected" ? "text-sm font-medium text-success" : "text-sm font-medium text-muted-foreground"}>
-            {instagram?.status === "connected" ? ui.connected : (lang === "tr" ? "Yakında" : "Coming soon")}
-          </span>
+
+          {instagramConnected && (
+            <p className="rounded-lg bg-success/10 px-3 py-2 text-sm text-success">{ui.instagramConnectedMsg}</p>
+          )}
+          {instagramErrorText && (
+            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{instagramErrorText}</p>
+          )}
+
+          {instagram?.status === "connected" ? (
+            <form action={disconnectAction} className="flex items-center gap-3">
+              <input type="hidden" name="organizationId" value={organizationId} />
+              <input type="hidden" name="channelConnectionId" value={instagram.id} />
+              <Button type="submit" variant="outline" disabled={disconnectPending} className="gap-2">
+                {disconnectPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {ui.disconnect}
+              </Button>
+            </form>
+          ) : metaConfigured ? (
+            <a href={`/api/integrations/instagram/connect?organizationId=${organizationId}`}>
+              <Button type="button" variant="outline">
+                {ui.connectInstagram}
+              </Button>
+            </a>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {lang === "tr" ? "Meta uygulama onayı bekleniyor." : "Waiting for Meta app approval."}
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>

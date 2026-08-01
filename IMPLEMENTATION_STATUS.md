@@ -16,8 +16,8 @@ demo verisiyle çalışan bir arayüz kabuğu. Her fazın sonunda güncellenir.
 
 | # | Alan | Durum | Kanıt |
 |---|---|---|---|
-| 1 | Kimlik doğrulama | `DEMO_ONLY` | `components/auth/auth-screen.tsx` — kendi yorumu "DEMO BYPASS". Login/signup `setTimeout` ile `/dashboard`'a yönlendiriyor, kimlik kontrolü yok. `app/(app)/layout.tsx`'te ve hiçbir yerde route koruması/middleware yok — herhangi bir sayfa girişsiz açılıyor. "Çıkış yap" sadece `/login`'e link, session yok. |
-| 2 | Organizasyon/ekip yapısı | `DEMO_ONLY` | Kod yok. Yalnızca pazarlama SSS metninde "Business planında roller" cümlesi var — hiçbir yerde model/switcher/davet akışı yok. |
+| 1 | Kimlik doğrulama | `PRODUCTION_READY` | Gerçek Supabase Auth: e-posta/şifre kayıt+doğrulama, giriş, şifremi unuttum/yenile, güvenli çıkış (`lib/actions/auth.ts`), `proxy.ts` ile route koruması + session yenileme. Demo bypass yalnızca `DEMO_MODE=true` + dev'de. Canlı testte doğrulandı. |
+| 2 | Organizasyon/ekip yapısı | `PRODUCTION_READY` | Onboarding (`app/onboarding`), davet/rol/kaldırma (`lib/actions/members.ts`, Settings'te rol bazlı UI), son-owner koruması DB trigger'ıyla. Canlı çapraz-organizasyon testiyle doğrulandı (bkz. Faz 2 geçmişi — bir RLS açığı bulunup düzeltildi). |
 | 3 | WhatsApp alma/gönderme | `DEMO_ONLY` | Twilio paketi kurulu değil, webhook route yok (`app/api` yok). `lib/demo/data.ts`'te `channel: "whatsapp"` etiketli mock konuşmalar var. |
 | 4 | Instagram mesajları | `DEMO_ONLY` | Meta/Instagram API kodu yok. Sadece mock verilerde `channel: "instagram"` etiketi. |
 | 5 | Web chat | `DEMO_ONLY` | Gömülebilir widget bileşeni/scripti yok. `web` sadece mock konuşmalarda üçüncü bir kanal etiketi. |
@@ -33,13 +33,11 @@ demo verisiyle çalışan bir arayüz kabuğu. Her fazın sonunda güncellenir.
 
 ## Sonraki fazın önkoşulları
 
-Faz 1 (veri modeli/RLS) ve Faz 2 (auth) başlamadan önce şu kullanıcı
-kararları/kaynakları gerekiyor — tahmin yürütülmeyecek, sorulacak:
+Faz 3 (WhatsApp/Twilio) başlamadan önce gerekecek:
 
-- Supabase projesi: mevcut mu, yoksa şimdi mi oluşturulacak (Project URL + anon key + service-role key).
 - Twilio hesabı ve WhatsApp Business gönderici numarası.
-- Anthropic API anahtarı ve kullanılacak model adı.
-- Faz 10 için ödeme sağlayıcısı: Stripe mi, yoksa Türkiye için iyzico/PayTR mi.
+- Anthropic API anahtarı (Faz 5'e kadar gerekmiyor, erken alınabilir).
+- Faz 10 için ödeme sağlayıcısı kararı: Stripe mi, yoksa Türkiye için iyzico/PayTR mi.
 - Meta/Instagram uygulaması (Faz 8'e kadar gerekmiyor, erken karar gerekmez).
 
 ## Faz geçmişi
@@ -53,3 +51,13 @@ kararları/kaynakları gerekiyor — tahmin yürütülmeyecek, sorulacak:
   şimdilik organizations/profiles/organization_members — diğerleri
   kullanan faz geldikçe eklenecek). Gerçek çapraz-organizasyon RLS testi
   Faz 2'nin gerçek kullanıcıları olmadan yapılamıyor, Faz 2'ye ertelendi.
+- **Faz 2** — Tamamlandı: gerçek auth, onboarding, ekip/rol yönetimi.
+  **Canlı çapraz-organizasyon RLS testinde kritik bir güvenlik açığı
+  bulundu ve düzeltildi**: `organization_members` bootstrap politikası,
+  "bu organizasyonda üye var mı" kontrolünü RLS'e tabi bir alt sorguyla
+  yapıyordu — bu da her zaman "üye yok" gibi görünmesine yol açıyordu,
+  yani herhangi bir kullanıcı kendini başka birinin organizasyonuna
+  owner olarak ekleyebiliyordu (migration `0011`, `SECURITY DEFINER`
+  fonksiyonla düzeltildi). Ayrıca org oluşturma sırasında `RETURNING`
+  satırının okunamadığı ayrı bir bug bulunup düzeltildi (`0010`). Her
+  ikisi de gerçek kullanıcılarla test edilip test verileri temizlendi.

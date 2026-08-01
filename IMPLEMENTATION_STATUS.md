@@ -131,3 +131,23 @@ Faz 5 (AI cevap üretimi) için:
   dolu env ile build tekrar doğrulandı. Entegrasyon/E2E testi yok
   (gerçek/mock Supabase altyapısı gerektirir) — bunun yerine bu
   oturum boyunca her faz canlı REST testleriyle doğrulandı.
+- **Faz 13 (kısmi)** — `GET /api/health` gerçek veritabanı
+  bağlantısını kontrol ediyor (uptime monitor/deploy health check için).
+  Sentry/hata izleme (hesap gerekiyor), yedek/geri yükleme tatbikatı
+  (Supabase altyapı seviyesinde hallediyor), durum sayfası bu pass'te
+  yapılmadı.
+
+## Kalan fazlar — kullanıcı kararı/hesabı gerekiyor
+
+Aşağıdakiler dış hesap veya kullanıcı kararı olmadan ilerletilemez,
+bu yüzden bilerek yapılmadı (tahmin yürütülmedi):
+
+- **Faz 5** (AI cevap üretimi) — Anthropic API anahtarı gerekiyor.
+- **Faz 8.1** (Instagram) — Meta Developer App + Instagram Business
+  hesabı gerekiyor (Twilio gibi ücretsiz sandbox'ı yok).
+- **Faz 10** (abonelik/faturalandırma) — ödeme sağlayıcısı kararı
+  (Stripe mi, Türkiye için iyzico/PayTR mi) + o sağlayıcıda hesap.
+- **Faz 13'ün geri kalanı** — Sentry (veya benzeri) hesabı.
+- **Faz 14** (production deployment) — Vercel (veya seçilecek
+  platform) hesabı, custom domain, gerçek webhook URL'leri.
+- **Faz 15** (pilot müşteri) — gerçek pilot işletmeler.

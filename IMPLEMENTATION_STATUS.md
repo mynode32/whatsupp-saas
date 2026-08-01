@@ -118,3 +118,16 @@ Faz 5 (AI cevap üretimi) için:
   (owner-only, isim onaylı, Settings'te) — ikisi de gerçek FK cascade
   ile çalışıyor, canlı test edildi. Taslak /privacy, /terms, /kvkk
   sayfaları (avukat incelemesi gerektiği açıkça belirtilmiş).
+- **Faz 12** — Tamamlandı: Vitest ile 26 gerçek unit test (5 dosya —
+  slug, CSV escape, bilgi tabanı chunk'lama, mesai saati mantığı, rate
+  limiter), GitHub Actions CI (`lint+typecheck+test+build`, her push/PR'da).
+  **CI kurulumu kritik bir bug'ı ortaya çıkardı**: `next build`,
+  Supabase anahtarları hiç ayarlanmamışken tamamen çöküyordu —
+  `lib/supabase/server.ts` yapılandırma hatasını `cookies()`
+  çağrısından önce fırlatıyordu, bu da Next.js'in sayfayı "dinamik"
+  olarak işaretlemesini engelliyor ve build-zamanı statik üretim
+  denemesini çökertiyordu. Bu, Faz 2'den beri kitin "sıfır anahtarla
+  açılır" sözünü sessizce bozmuştu. Sıra değiştirilip hem sıfır hem
+  dolu env ile build tekrar doğrulandı. Entegrasyon/E2E testi yok
+  (gerçek/mock Supabase altyapısı gerektirir) — bunun yerine bu
+  oturum boyunca her faz canlı REST testleriyle doğrulandı.

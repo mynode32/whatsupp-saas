@@ -28,6 +28,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem("lang");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs from localStorage after mount to avoid SSR/client mismatch
     if (saved === "tr" || saved === "en") setLangState(saved);
   }, []);
 

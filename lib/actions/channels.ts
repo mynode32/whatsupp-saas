@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createTwilioClient, isTwilioConfigured } from "@/lib/twilio/client";
 import { serverEnv } from "@/lib/env.server";
+import { createNotification } from "@/lib/notifications/create";
 import type { AuthActionState } from "@/lib/actions/auth";
 
 const connectSchema = z.object({ organizationId: z.uuid() });
@@ -67,6 +68,24 @@ export async function connectTwilioAction(
     : await supabase.from("channel_connections").insert({ ...fields, organization_id: parsed.data.organizationId });
 
   if (error) return { error: error.message };
+
+  if (status === "error") {
+    const { data: admins } = await supabase
+      .from("organization_members")
+      .select("user_id")
+      .eq("organization_id", parsed.data.organizationId)
+      .in("role", ["owner", "admin"]);
+    for (const admin of admins ?? []) {
+      await createNotification({
+        organizationId: parsed.data.organizationId,
+        userId: admin.user_id,
+        type: "channel_error",
+        title: "WhatsApp connection failed",
+        body: lastError ?? undefined,
+        link: "/settings",
+      });
+    }
+  }
 
   revalidatePath("/settings");
   return status === "connected" ? { success: true } : { error: lastError ?? "Connection failed" };

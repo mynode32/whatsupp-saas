@@ -44,7 +44,7 @@ export async function listConversations(organizationId: string, status?: "open" 
 
 export async function getConversation(
   conversationId: string,
-): Promise<{ id: string; status: Conversation["status"]; contactName: string } | null> {
+): Promise<{ id: string; status: Conversation["status"]; contactName: string; assignedTo: string | null } | null> {
   const supabase = await createClient();
   const conversation: Conversation | null = unwrapNullable(
     await supabase.from("conversations").select("*").eq("id", conversationId).maybeSingle(),
@@ -55,7 +55,12 @@ export async function getConversation(
     await supabase.from("contacts").select("*").eq("id", conversation.contact_id).maybeSingle(),
   );
 
-  return { id: conversation.id, status: conversation.status, contactName: contact?.display_name ?? "Unknown" };
+  return {
+    id: conversation.id,
+    status: conversation.status,
+    contactName: contact?.display_name ?? "Unknown",
+    assignedTo: conversation.assigned_to,
+  };
 }
 
 export async function listMessages(conversationId: string) {

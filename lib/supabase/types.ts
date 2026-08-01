@@ -109,6 +109,29 @@ export interface Database {
         Update: Partial<Omit<Database["public"]["Tables"]["invitations"]["Insert"], "organization_id">>;
         Relationships: [];
       };
+      audit_logs: {
+        Row: {
+          id: string;
+          organization_id: string;
+          actor_id: string | null;
+          action: string;
+          target_type: string;
+          target_id: string | null;
+          metadata: Record<string, unknown>;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          actor_id?: string | null;
+          action: string;
+          target_type: string;
+          target_id?: string | null;
+          metadata?: Record<string, unknown>;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["audit_logs"]["Insert"], "organization_id">>;
+        Relationships: [];
+      };
       business_hours: {
         Row: {
           id: string;
@@ -421,6 +444,72 @@ export interface Database {
         Row: { organization_id: string; conversation_id: string; tag_id: string; created_at: string };
         Insert: { organization_id: string; conversation_id: string; tag_id: string };
         Update: Partial<Database["public"]["Tables"]["conversation_tags"]["Insert"]>;
+        Relationships: [];
+      };
+      notifications: {
+        Row: {
+          id: string;
+          organization_id: string;
+          user_id: string;
+          type: string;
+          title: string;
+          body: string | null;
+          link: string | null;
+          read_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          user_id: string;
+          type: string;
+          title: string;
+          body?: string | null;
+          link?: string | null;
+          read_at?: string | null;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["notifications"]["Insert"], "organization_id" | "user_id">>;
+        Relationships: [];
+      };
+      conversation_notes: {
+        Row: {
+          id: string;
+          organization_id: string;
+          conversation_id: string;
+          author_id: string | null;
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          conversation_id: string;
+          author_id?: string | null;
+          body: string;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["conversation_notes"]["Insert"], "organization_id" | "conversation_id">>;
+        Relationships: [];
+      };
+      saved_replies: {
+        Row: {
+          id: string;
+          organization_id: string;
+          title: string;
+          body: string;
+          shortcut: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          title: string;
+          body: string;
+          shortcut?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<Omit<Database["public"]["Tables"]["saved_replies"]["Insert"], "organization_id">>;
         Relationships: [];
       };
       automation_actions: {

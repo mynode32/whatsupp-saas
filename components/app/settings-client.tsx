@@ -11,6 +11,7 @@ import { Icon } from "@/components/ui/icon";
 import { useLang } from "@/components/i18n/language-provider";
 import { updateOrganizationBrandAction } from "@/lib/actions/organizations";
 import { connectTwilioAction, createWebChannelAction } from "@/lib/actions/channels";
+import { createSavedReplyAction, deleteSavedReplyAction } from "@/lib/actions/saved-replies";
 import {
   inviteMemberAction,
   cancelInvitationAction,
@@ -24,6 +25,7 @@ import type { Database, OrgRole } from "@/lib/supabase/types";
 type Organization = Database["public"]["Tables"]["organizations"]["Row"];
 type Invitation = Database["public"]["Tables"]["invitations"]["Row"];
 type ChannelConnection = Database["public"]["Tables"]["channel_connections"]["Row"];
+type SavedReply = Database["public"]["Tables"]["saved_replies"]["Row"];
 
 const initialState: AuthActionState = {};
 
@@ -33,6 +35,7 @@ export function SettingsClient({
   members,
   invitations,
   channels,
+  savedReplies,
   currentUserId,
   currentUserRole,
 }: {
@@ -41,6 +44,7 @@ export function SettingsClient({
   members: TeamMember[];
   invitations: Invitation[];
   channels: ChannelConnection[];
+  savedReplies: SavedReply[];
   currentUserId: string;
   currentUserRole: OrgRole;
 }) {
@@ -84,6 +88,11 @@ export function SettingsClient({
         </>
       )}
 
+      {/* Saved replies */}
+      {organization && (
+        <SavedRepliesCard organizationId={organization.id} savedReplies={savedReplies} />
+      )}
+
       {/* Team */}
       {organization && (
         <TeamCard
@@ -93,6 +102,24 @@ export function SettingsClient({
           currentUserId={currentUserId}
           isAdmin={isAdmin}
         />
+      )}
+
+      {/* Data export */}
+      {organization && isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{ui.dataExport}</CardTitle>
+            <p className="text-sm text-muted-foreground">{ui.dataExportHint}</p>
+          </CardHeader>
+          <CardContent>
+            <a
+              href="/api/export/conversations"
+              className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ring-1 ring-border transition hover:bg-muted"
+            >
+              {ui.exportConversations}
+            </a>
+          </CardContent>
+        </Card>
       )}
 
       {/* Integrations */}
@@ -301,6 +328,65 @@ function WebChatCard({ organizationId, channels }: { organizationId: string; cha
           <Button type="submit" disabled={pending} className="gap-2">
             {pending && <Loader2 className="h-4 w-4 animate-spin" />}
             {ui.setupWidget}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SavedRepliesCard({ organizationId, savedReplies }: { organizationId: string; savedReplies: SavedReply[] }) {
+  const { ui } = useLang();
+  const [state, formAction, pending] = useActionState(createSavedReplyAction, initialState);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{ui.savedReplies}</CardTitle>
+        <p className="text-sm text-muted-foreground">{ui.savedRepliesHint}</p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          {savedReplies.map((r) => (
+            <div key={r.id} className="flex items-start gap-3 rounded-lg border border-border p-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">{r.title} {r.shortcut && <span className="text-xs text-muted-foreground">/{r.shortcut}</span>}</p>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{r.body}</p>
+              </div>
+              <form
+                action={async (formData: FormData) => {
+                  await deleteSavedReplyAction(formData);
+                }}
+              >
+                <input type="hidden" name="id" value={r.id} />
+                <button type="submit" className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive cursor-pointer">
+                  <X className="h-4 w-4" />
+                </button>
+              </form>
+            </div>
+          ))}
+        </div>
+
+        <form action={formAction} className="space-y-3">
+          <input type="hidden" name="organizationId" value={organizationId} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="replyTitle">{ui.title}</Label>
+              <Input id="replyTitle" name="title" required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="replyShortcut">{ui.shortcut}</Label>
+              <Input id="replyShortcut" name="shortcut" placeholder="kargo" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="replyBody">{ui.replyBody}</Label>
+            <textarea id="replyBody" name="body" required rows={2} className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+          </div>
+          {state.error && <p className="text-sm text-destructive">{state.error}</p>}
+          <Button type="submit" disabled={pending} className="gap-2">
+            {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+            {ui.add}
           </Button>
         </form>
       </CardContent>

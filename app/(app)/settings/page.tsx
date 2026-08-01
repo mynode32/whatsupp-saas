@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getOrganization } from "@/lib/db/organizations";
 import { listTeamMembers } from "@/lib/db/team";
 import { listPendingInvitations } from "@/lib/db/invitations";
+import { listSavedReplies } from "@/lib/db/saved-replies";
 import { SettingsClient } from "@/components/app/settings-client";
 
 export default async function SettingsPage() {
@@ -23,7 +24,7 @@ export default async function SettingsPage() {
     .limit(1)
     .maybeSingle();
 
-  const [organization, members, invitations, channels] = membership
+  const [organization, members, invitations, channels, savedReplies] = membership
     ? await Promise.all([
         getOrganization(membership.organization_id),
         listTeamMembers(membership.organization_id),
@@ -33,8 +34,9 @@ export default async function SettingsPage() {
           .select("*")
           .eq("organization_id", membership.organization_id)
           .then((r) => r.data ?? []),
+        listSavedReplies(membership.organization_id),
       ])
-    : [null, [], [], []];
+    : [null, [], [], [], []];
 
   return (
     <SettingsClient
@@ -43,6 +45,7 @@ export default async function SettingsPage() {
       members={members}
       invitations={invitations}
       channels={channels}
+      savedReplies={savedReplies}
       currentUserId={user!.id}
       currentUserRole={membership?.role ?? "viewer"}
     />

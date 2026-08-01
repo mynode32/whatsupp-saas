@@ -1,0 +1,41 @@
+"use server";
+
+import { z } from "zod";
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import type { AuthActionState } from "@/lib/actions/auth";
+
+const addNoteSchema = z.object({
+  organizationId: z.uuid(),
+  conversationId: z.uuid(),
+  body: z.string().min(1, "Note can't be empty"),
+});
+
+export async function addConversationNoteAction(
+  _prev: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
+  const parsed = addNoteSchema.safeParse({
+    organizationId: formData.get("organizationId"),
+    conversationId: formData.get("conversationId"),
+    body: formData.get("body"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in" };
+
+  const { error } = await supabase.from("conversation_notes").insert({
+    organization_id: parsed.data.organizationId,
+    conversation_id: parsed.data.conversationId,
+    author_id: user.id,
+    body: parsed.data.body,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath("/conversations");
+  return { success: true };
+}
